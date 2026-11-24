@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>登录 · CloudNest</title>
+<link rel="stylesheet" href="/static/app.css">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<script>
+(function(){try{var t=localStorage.getItem('cn-theme');document.documentElement.setAttribute('data-theme',(t==='light'||t==='dark')?t:(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'));}catch(e){}})();
+</script>
+<script src="/static/app.js" defer></script>
+</head>
+<body class="auth-body">
+<div class="auth-shell">
+  <div class="auth-brand">
+    <a href="/" class="brand-link">
+      <span class="brand-mark">{% include "icons/cloud.svg" %}</span>
+      <span class="brand-text">Cloud<span>Nest</span></span>
+    </a>
+    <button class="icon-btn theme-toggle" type="button" data-theme-toggle aria-label="切换主题">
+      <span class="theme-icon-light">{% include "icons/sun.svg" %}</span>
+      <span class="theme-icon-dark">{% include "icons/moon.svg" %}</span>
+    </button>
+  </div>
+  <div class="auth-card">
+    <div class="auth-heading">
+      <span class="eyebrow">欢迎回来</span>
+      <h1>登录你的网盘</h1>
+      <p>安全存放和分享你的文件。</p>
+    </div>
+    {% if let Some(error) = page.error %}
+    <div class="flash flash-err" role="alert"><span class="flash-dot"></span><span>{{ error }}</span></div>
+    {% endif %}
+    <form method="post" action="/login" class="stack-form">
+      <input type="hidden" name="next" value="{{ page.next }}">
+      <label class="field">
+        <span class="field-label">用户名</span>
+        <input type="text" name="username" value="{{ page.username }}" required autofocus autocomplete="username" spellcheck="false">
+      </label>
+      <label class="field">
+        <span class="field-label">密码</span>
+        <input type="password" name="password" required autocomplete="current-password">
+      </label>
+      <button class="btn btn-primary btn-block" type="submit">登录</button>
+    </form>
+    <p class="auth-footnote">首次使用？如果系统尚未初始化，请访问 <a href="/setup">初始化页面</a>。</p>
+  </div>
+  <p class="auth-copyright">CloudNest · 简单可靠的个人网盘</p>
+</div>
+</body>
+</html>

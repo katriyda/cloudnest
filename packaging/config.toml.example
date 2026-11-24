@@ -1,0 +1,40 @@
+# CloudNest 配置文件
+#
+# 安装后的默认路径：/etc/cloudnest/config.toml
+# 启动命令：cloudnest serve --config /etc/cloudnest/config.toml
+# 修改配置后需要重启服务：systemctl restart cloudnest
+
+# HTTP 监听地址。
+# 默认监听所有网卡：0.0.0.0:8080。
+# 若由本机反向代理转发，建议改为 127.0.0.1:8080 以减少暴露面。
+listen = "0.0.0.0:8080"
+
+# 数据目录：SQLite 数据库与用户文件均保存在此目录。
+# 必须对运行服务的系统用户 cloudnest 可读写。
+data_dir = "/var/lib/cloudnest"
+
+# 对外访问地址（含协议与端口，不含结尾斜杠）。
+# 留空时分享链接会根据浏览器请求的 Host 自动生成；
+# 通过 HTTPS 反向代理访问时，请填写真实 HTTPS 地址，例如 "https://cloud.example.com"。
+public_url = ""
+
+# 是否仅通过 HTTPS 发送会话 Cookie。
+# 通过 HTTPS 访问时必须设为 true；初始使用纯 HTTP 时可保持 false。
+# 提示：public_url 以 https:// 开头时会自动启用此选项。
+secure_cookies = false
+
+# 单次 HTTP 请求体的最大体积（单位 MiB）。
+# 通过反向代理上传大文件时，代理侧的限制也应同步放宽。
+max_upload_size_mb = 2048
+
+# 新建用户的默认存储配额（单位 GiB），0 表示不限。
+# 管理员可在管理后台为单个用户调整配额。
+default_quota_gb = 10
+
+# 登录会话有效期（单位：天，范围 1-365）。
+session_days = 30
+
+# 可选环境变量（优先级高于本文件）：
+#   CLOUDNEST_LISTEN       覆盖 listen
+#   CLOUDNEST_DATA_DIR     覆盖 data_dir
+#   CLOUDNEST_PUBLIC_URL   覆盖 public_url

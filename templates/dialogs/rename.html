@@ -1,0 +1,19 @@
+<div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+  <div class="modal-head">
+    <div><span class="eyebrow">{% if page.is_dir %}文件夹{% else %}文件{% endif %}</span><h2 id="dialog-title">重命名</h2></div>
+    <button type="button" class="icon-btn" data-modal-close aria-label="关闭">{% include "icons/close.svg" %}</button>
+  </div>
+  <form method="post" action="{{ page.action }}" class="stack-form">
+    <input type="hidden" name="csrf" value="{{ page.csrf }}">
+    <input type="hidden" name="id" value="{{ page.file_id }}">
+    <label class="field">
+      <span class="field-label">新名称</span>
+      <input type="text" name="name" value="{{ page.name }}" required maxlength="200" autofocus autocomplete="off">
+      <span class="field-hint">不能包含 / \ : * ? " &lt; &gt; | 等字符。</span>
+    </label>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" data-modal-close>取消</button>
+      <button class="btn btn-primary" type="submit">保存</button>
+    </div>
+  </form>
+</div>

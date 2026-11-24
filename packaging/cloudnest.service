@@ -1,0 +1,48 @@
+[Unit]
+Description=CloudNest 个人云盘服务
+Documentation=https://github.com/cloudnest-app/cloudnest
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cloudnest
+Group=cloudnest
+WorkingDirectory=/var/lib/cloudnest
+ExecStart=/opt/cloudnest/cloudnest serve --config /etc/cloudnest/config.toml
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+Environment=RUST_LOG=info
+SyslogIdentifier=cloudnest
+StandardOutput=journal
+StandardError=journal
+
+# ---- 安全加固 ----
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/cloudnest
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

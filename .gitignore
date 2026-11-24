@@ -1,0 +1,9 @@
+/target
+/dist/
+
+# local development/runtime data and test artifacts
+.dev/
+*.log
+cloudnest-backup/
+.DS_Store
+Thumbs.db

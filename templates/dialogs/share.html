@@ -1,0 +1,41 @@
+<div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+  <div class="modal-head">
+    <div><span class="eyebrow">创建分享</span><h2 id="dialog-title">分享{% if page.is_dir %}文件夹{% else %}文件{% endif %}</h2></div>
+    <button type="button" class="icon-btn" data-modal-close aria-label="关闭">{% include "icons/close.svg" %}</button>
+  </div>
+  <form method="post" action="{{ page.action }}" class="stack-form">
+    <input type="hidden" name="csrf" value="{{ page.csrf }}">
+    {% if page.fixed_file %}
+    <input type="hidden" name="file_id" value="{{ page.selected_id }}">
+    <p class="modal-note">正在分享：<strong>{{ page.selected_name }}</strong></p>
+    {% else %}
+    <label class="field">
+      <span class="field-label">选择文件或文件夹</span>
+      <select name="file_id" required>
+        {% for file in page.files %}
+        <option value="{{ file.id }}">{{ file.name }}{% if file.is_dir %} /{% endif %}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% endif %}
+    <label class="field">
+      <span class="field-label">提取密码（可选）</span>
+      <input type="password" name="password" maxlength="128" autocomplete="new-password" placeholder="留空表示无需密码">
+    </label>
+    <div class="field-row">
+      <label class="field">
+        <span class="field-label">有效期（可选）</span>
+        <input type="datetime-local" name="expires_at" min="{{ page.min_expiry }}">
+        <span class="field-hint">留空表示长期有效</span>
+      </label>
+      <label class="field">
+        <span class="field-label">下载次数上限（可选）</span>
+        <input type="number" name="max_downloads" min="1" max="1000000" step="1" placeholder="不限">
+      </label>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" data-modal-close>取消</button>
+      <button class="btn btn-primary" type="submit">创建分享</button>
+    </div>
+  </form>
+</div>

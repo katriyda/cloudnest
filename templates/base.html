@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{% block title %}CloudNest{% endblock %}</title>
+<meta name="csrf-token" content="{{ page.common.csrf }}">
+<link rel="stylesheet" href="/static/app.css">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<script>
+(function () {
+  try {
+    var t = localStorage.getItem('cn-theme');
+    if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+    else document.documentElement.setAttribute('data-theme', window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  } catch (e) {}
+})();
+</script>
+<script src="/static/htmx.min.js" defer></script>
+<script src="/static/app.js" defer></script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <a href="/files" class="brand-link" aria-label="CloudNest 首页">
+        <span class="brand-mark">{% include "icons/cloud.svg" %}</span>
+        <span class="brand-text">Cloud<span>Nest</span></span>
+      </a>
+      <button class="icon-btn sidebar-close" type="button" data-sidebar-close aria-label="关闭导航">{% include "icons/x.svg" %}</button>
+    </div>
+    <nav class="nav" aria-label="主导航">
+      <a class="nav-link{% if page.common.active == "files" %} is-active{% endif %}" href="/files">
+        <span class="nav-icon">{% include "icons/folder.svg" %}</span><span>我的文件</span>
+      </a>
+      <a class="nav-link{% if page.common.active == "shares" %} is-active{% endif %}" href="/shares">
+        <span class="nav-icon">{% include "icons/link.svg" %}</span><span>我的分享</span>
+      </a>
+      <a class="nav-link{% if page.common.active == "trash" %} is-active{% endif %}" href="/trash">
+        <span class="nav-icon">{% include "icons/trash.svg" %}</span><span>回收站</span>
+        {% if page.common.trash_count > 0 %}<span class="nav-badge">{{ page.common.trash_count }}</span>{% endif %}
+      </a>
+      {% if page.common.is_admin %}
+      <span class="nav-divider"></span>
+      <a class="nav-link{% if page.common.active == "admin" %} is-active{% endif %}" href="/admin">
+        <span class="nav-icon">{% include "icons/settings.svg" %}</span><span>管理后台</span>
+      </a>
+      {% endif %}
+    </nav>
+    <div class="sidebar-spacer"></div>
+    <div class="storage-card">
+      <div class="storage-top">
+        <span class="storage-label">存储空间</span>
+        <span class="storage-value">{{ page.common.used_text }} / {{ page.common.quota_text }}</span>
+      </div>
+      <div class="meter"><div class="meter-fill{% if page.common.used_percent >= 90 %} is-danger{% endif %}" style="width: {{ page.common.used_percent }}%"></div></div>
+      {% if page.common.quota_unlimited %}<p class="storage-hint">未设置上限</p>{% else %}<p class="storage-hint">已使用 {{ page.common.used_percent }}%</p>{% endif %}
+    </div>
+    <div class="account-card">
+      <a href="/account" class="account-link">
+        <span class="avatar">{{ page.common.initial }}</span>
+        <span class="account-meta">
+          <span class="account-name">{{ page.common.username }}</span>
+          <span class="account-role">{% if page.common.is_admin %}管理员{% else %}用户{% endif %}</span>
+        </span>
+      </a>
+      <form method="post" action="/logout" class="logout-form">
+        <input type="hidden" name="csrf" value="{{ page.common.csrf }}">
+        <button class="icon-btn" type="submit" title="退出登录" aria-label="退出登录">{% include "icons/logout.svg" %}</button>
+      </form>
+    </div>
+  </aside>
+  <div class="sidebar-backdrop" data-sidebar-close></div>
+
+  <main class="main">
+    <header class="topbar">
+      <button class="icon-btn menu-btn" type="button" data-sidebar-open aria-label="打开导航">{% include "icons/menu.svg" %}</button>
+      <form class="global-search" action="/files" method="get" role="search">
+        <span class="search-icon">{% include "icons/search.svg" %}</span>
+        <input type="search" name="q" placeholder="搜索文件…" aria-label="搜索文件" autocomplete="off">
+      </form>
+      <div class="topbar-actions">
+        <button class="icon-btn theme-toggle" type="button" data-theme-toggle title="切换主题" aria-label="切换浅色/深色主题">
+          <span class="theme-icon-light">{% include "icons/sun.svg" %}</span>
+          <span class="theme-icon-dark">{% include "icons/moon.svg" %}</span>
+        </button>
+      </div>
+    </header>
+    {% if let Some(flash) = page.common.flash %}
+    <div class="flash flash-{{ flash.kind }}" role="status">
+      <span class="flash-dot"></span>
+      <span>{{ flash.message }}</span>
+      <button type="button" class="flash-close" data-dismiss aria-label="关闭">&times;</button>
+    </div>
+    {% endif %}
+    <div class="content">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+</div>
+<div id="modal" class="modal-host" aria-live="polite"></div>
+</body>
+</html>

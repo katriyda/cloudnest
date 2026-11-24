@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ status }} · CloudNest</title>
+<link rel="stylesheet" href="/static/app.css">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<script>try{var t=localStorage.getItem('cn-theme');document.documentElement.setAttribute('data-theme',(t==='light'||t==='dark')?t:(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'));}catch(e){}</script>
+</head>
+<body class="auth-body">
+<div class="auth-shell">
+  <div class="auth-brand">
+    <a href="/" class="brand-link"><span class="brand-mark">{% include "icons/cloud.svg" %}</span><span class="brand-text">Cloud<span>Nest</span></span></a>
+  </div>
+  <div class="auth-card error-card">
+    <span class="error-status">{{ status }}</span>
+    <h1>{{ title }}</h1>
+    <p>{{ message }}</p>
+    <a class="btn btn-primary" href="/files">返回我的文件</a>
+  </div>
+  <p class="auth-copyright">CloudNest · 简单可靠的个人网盘</p>
+</div>
+</body>
+</html>

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}{{ page.name }} · CloudNest{% endblock %}
+{% block content %}
+<div class="page-head preview-head">
+  <div class="page-title-wrap">
+    <div class="crumbs">
+      <a class="crumb" href="{{ page.back_url }}">我的文件</a>
+      <span class="crumb-sep">{% include "icons/chevron.svg" %}</span>
+      <span class="crumb is-current">{{ page.name }}</span>
+    </div>
+    <h1 class="preview-name">{{ page.name }}</h1>
+    <p class="page-sub">{{ page.size_text }}{% if page.mime != "" %} · {{ page.mime }}{% endif %}</p>
+  </div>
+  <div class="head-actions">
+    <a class="btn btn-primary" href="{{ page.download_url }}">{% include "icons/download.svg" %}下载</a>
+  </div>
+</div>
+
+<div class="preview-shell preview-{{ page.kind }}">
+  {% if page.kind == "image" %}
+  <div class="preview-image-wrap"><img src="{{ page.raw_url }}" alt="{{ page.name }}"></div>
+  {% else if page.kind == "video" %}
+  <div class="preview-media"><video src="{{ page.raw_url }}" controls preload="metadata" playsinline></video></div>
+  {% else if page.kind == "audio" %}
+  <div class="audio-card">
+    <span class="audio-icon">{% include "icons/play.svg" %}</span>
+    <div class="audio-info"><h2>{{ page.name }}</h2><p>{{ page.size_text }}</p></div>
+    <audio src="{{ page.raw_url }}" controls preload="metadata"></audio>
+  </div>
+  {% else if page.kind == "pdf" %}
+  <iframe class="preview-frame" src="{{ page.raw_url }}" title="{{ page.name }}"></iframe>
+  {% else if page.kind == "text" %}
+  <div class="text-preview-wrap">
+    {% if page.text_truncated %}<p class="preview-note">文件较大，仅显示前 1 MB。可下载查看完整内容。</p>{% endif %}
+    <pre class="text-preview">{{ page.text_content }}</pre>
+  </div>
+  {% else %}
+  <div class="preview-fallback">
+    <span class="empty-icon">{% include "icons/cloud.svg" %}</span>
+    <h2>该格式暂不支持在线预览</h2>
+    <p>下载后使用本地应用打开。</p>
+    <a class="btn btn-primary" href="{{ page.download_url }}">下载文件</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
