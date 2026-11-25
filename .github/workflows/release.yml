@@ -70,7 +70,8 @@ jobs:
             exit 1
           fi
           file "$binary"
-          if ! file "$binary" | grep -q "statically linked"; then
+          # musl 目标可能产出 static-pie 或 static，两者都算静态链接
+          if ! file "$binary" | grep -Eq "statically linked|static-pie linked"; then
             echo "::error::$binary 不是静态链接，musl 构建失败"
             exit 1
           fi
