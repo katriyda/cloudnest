@@ -1,9 +1,11 @@
 use crate::config::Config;
 use crate::db::{SetupError, init_pool};
+use crate::ratelimit::RateLimiter;
 use crate::update::UpdateService;
 use sqlx::SqlitePool;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
+use tokio::sync::Semaphore;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -13,6 +15,10 @@ pub struct AppState {
     pub tmp_dir: PathBuf,
     /// 在线更新服务：检查版本、下载校验与互斥锁。
     pub updates: UpdateService,
+    /// 登录与分享密码的失败计数（进程内）。
+    pub limits: RateLimiter,
+    /// 限制同时进行的 Argon2 校验数量，避免未认证请求耗尽 CPU。
+    pub password_gate: Arc<Semaphore>,
     config: Arc<RwLock<Arc<Config>>>,
     config_path: Option<Arc<PathBuf>>,
 }
@@ -38,12 +44,19 @@ impl AppState {
         tokio::fs::create_dir_all(&files_root).await?;
         tokio::fs::create_dir_all(&tmp_dir).await?;
         let pool = init_pool(&data_dir.join("cloudnest.db")).await?;
+        crate::auth::warm_password_dummy();
+        let password_slots = std::thread::available_parallelism()
+            .map(|count| count.get())
+            .unwrap_or(2)
+            .clamp(2, 8);
         Ok(Self {
             pool,
             data_dir,
             files_root,
             tmp_dir,
             updates: UpdateService::new(),
+            limits: RateLimiter::new(),
+            password_gate: Arc::new(Semaphore::new(password_slots)),
             config: Arc::new(RwLock::new(Arc::new(config))),
             config_path: config_path.map(Arc::new),
         })
@@ -64,6 +77,17 @@ impl AppState {
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         *guard = Arc::new(config);
+    }
+
+    /// 占用一个密码校验槽位；最多等待 2 秒，仍然繁忙时返回 None（调用方返回 429）。
+    pub async fn password_slot(&self) -> Option<tokio::sync::SemaphorePermit<'_>> {
+        tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            self.password_gate.acquire(),
+        )
+        .await
+        .ok()?
+        .ok()
     }
 
     pub fn config_path(&self) -> Option<&Path> {

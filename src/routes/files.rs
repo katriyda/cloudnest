@@ -1058,7 +1058,9 @@ pub async fn upload_init(
         .ok_or_else(|| AppError::NotFound("目标文件夹不存在".to_string()))?;
     let components = util::sanitize_relative_components(&form.path)?;
     let filename = util::sanitize_filename(&form.name)?;
-    storage::ensure_quota(&state.pool, user.0.id, user.0.quota_bytes, form.size).await?;
+    // 未完成的分片上传也计入配额，避免通过大量并发上传绕过配额占满磁盘。
+    storage::ensure_quota_with_pending(&state.pool, user.0.id, user.0.quota_bytes, form.size)
+        .await?;
     let token = auth::random_token(24);
     let temp_path = state.temp_path(&format!("chunk-{token}"));
     tokio::fs::File::create(&temp_path).await?;

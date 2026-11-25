@@ -1,5 +1,6 @@
 use crate::auth::{self, CurrentUser};
 use crate::error::AppError;
+use crate::ratelimit::FailureLimit;
 use crate::state::AppState;
 use crate::util;
 use crate::views::{
@@ -10,6 +11,23 @@ use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect, Response};
 use serde::Deserialize;
+
+/// 同一用户名连续失败 10 次后锁定 15 分钟；记录的是“失败”，成功登录会清零。
+const LOGIN_FAILURE_LIMIT: FailureLimit = FailureLimit::new(10, 900, 900);
+
+fn login_key(username: &str) -> String {
+    format!("login-user:{}", username.to_lowercase())
+}
+
+fn note_login_failure(state: &AppState, username: &str) -> Option<i64> {
+    let blocked = state
+        .limits
+        .record_failure(&login_key(username), LOGIN_FAILURE_LIMIT);
+    if let Some(seconds) = blocked {
+        tracing::warn!("账号 {username} 登录失败次数过多，已临时锁定 {seconds} 秒");
+    }
+    blocked
+}
 
 #[derive(Deserialize, Default)]
 pub struct LoginQuery {
@@ -76,6 +94,28 @@ pub async fn login_submit(
     }
     let next = util::safe_next(form.next.as_deref());
     let username = form.username.trim().to_string();
+    let generic_error = "用户名或密码错误".to_string();
+
+    // 超出正常长度的输入直接拒绝，同时保持同样的耗时与文案。
+    if username.chars().count() > 64 || form.password.chars().count() > 128 {
+        auth::simulate_password_check(form.password.clone()).await?;
+        note_login_failure(&state, &username);
+        let page = LoginPage {
+            error: Some(generic_error),
+            next,
+            username,
+        };
+        return super::render(&LoginTemplate { page }, StatusCode::UNAUTHORIZED).await;
+    }
+
+    if let Some(seconds) = state.limits.blocked_seconds(&login_key(&username)) {
+        tracing::warn!("登录请求被限流: 用户 {username}");
+        return Err(AppError::rate_limited("尝试过于频繁，请稍后再试", seconds));
+    }
+    let Some(_slot) = state.password_slot().await else {
+        return Err(AppError::rate_limited("登录请求过多，请稍后再试", 30));
+    };
+
     let row: Option<(i64, String, i64)> =
         sqlx::query_as("SELECT id, password_hash, disabled FROM users WHERE username = ?")
             .bind(&username)
@@ -83,12 +123,26 @@ pub async fn login_submit(
             .await?;
 
     let error = match row {
-        None => Some("用户名或密码错误".to_string()),
-        Some((_id, _hash, disabled)) if disabled != 0 => {
-            Some("该账户已被禁用，请联系管理员".to_string())
+        // 不存在的账号也执行一次等价 Argon2 计算，避免通过响应时间枚举用户名。
+        None => {
+            auth::simulate_password_check(form.password.clone()).await?;
+            note_login_failure(&state, &username);
+            tracing::warn!("登录失败: 用户 {username}（账号不存在）");
+            Some(generic_error)
+        }
+        Some((_id, hash, disabled)) if disabled != 0 => {
+            let matched = auth::verify_password(form.password.clone(), hash).await?;
+            if matched {
+                Some("该账户已被禁用，请联系管理员".to_string())
+            } else {
+                note_login_failure(&state, &username);
+                tracing::warn!("登录失败: 用户 {username}（密码错误）");
+                Some(generic_error)
+            }
         }
         Some((id, hash, _)) => {
             if auth::verify_password(form.password.clone(), hash).await? {
+                state.limits.reset(&login_key(&username));
                 let config = state.config();
                 let (_, _, cookie) = auth::create_session(
                     &state.pool,
@@ -100,7 +154,9 @@ pub async fn login_submit(
                 tracing::info!("用户 {username} 登录成功");
                 return super::redirect_with_cookie(&next, &cookie);
             }
-            Some("用户名或密码错误".to_string())
+            note_login_failure(&state, &username);
+            tracing::warn!("登录失败: 用户 {username}（密码错误）");
+            Some(generic_error)
         }
     };
 
@@ -154,9 +210,11 @@ pub async fn setup_submit(
 
     let hash = auth::hash_password(form.password.clone()).await?;
     let now = util::now_ts();
+    // 用单条语句完成“仅当还没有任何用户时创建管理员”，避免并发初始化产生多个管理员。
     let result = sqlx::query(
         "INSERT INTO users (username, password_hash, role, disabled, quota_bytes, created_at)
-         VALUES (?, ?, 'admin', 0, 0, ?)",
+         SELECT ?, ?, 'admin', 0, 0, ?
+         WHERE NOT EXISTS (SELECT 1 FROM users)",
     )
     .bind(&username)
     .bind(&hash)
@@ -164,6 +222,10 @@ pub async fn setup_submit(
     .execute(&state.pool)
     .await;
     let user_id = match result {
+        Ok(row) if row.rows_affected() == 0 => {
+            tracing::info!("初始化页面被重复提交，已有管理员，跳转到登录");
+            return Ok(Redirect::to("/login").into_response());
+        }
         Ok(row) => row.last_insert_rowid(),
         Err(err) => {
             tracing::error!("初始化管理员失败: {err}");

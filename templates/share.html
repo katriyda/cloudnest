@@ -6,9 +6,7 @@
 <title>{{ page.root_name }} · CloudNest 分享</title>
 <link rel="stylesheet" href="/static/app.css">
 <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
-<script>
-(function(){try{var t=localStorage.getItem('cn-theme');document.documentElement.setAttribute('data-theme',(t==='light'||t==='dark')?t:(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'));}catch(e){}})();
-</script>
+<script src="/static/theme.js"></script>
 <script src="/static/app.js" defer></script>
 </head>
 <body class="share-body">
@@ -39,7 +37,14 @@
 
   {% if page.is_file %}
   <div class="share-preview-card preview-{{ page.file_preview }}">
-    {% if page.file_preview == "image" %}
+    {% if page.download_limited %}
+    <div class="preview-fallback">
+      <span class="file-icon"><span class="ext">{{ page.file_ext }}</span></span>
+      <h2>该分享限制了下载次数</h2>
+      <p>为避免在线预览占用下载次数，这里不自动加载内容。下载会消耗 1 次，剩余次数见页面顶部。</p>
+      <a class="btn btn-primary" href="{{ page.download_url }}">{% include "icons/download.svg" %}下载文件（消耗 1 次）</a>
+    </div>
+    {% else if page.file_preview == "image" %}
     <div class="preview-image-wrap"><img src="{{ page.raw_url }}" alt="{{ page.file_name }}"></div>
     {% else if page.file_preview == "video" %}
     <div class="preview-media"><video src="{{ page.raw_url }}" controls preload="metadata" playsinline></video></div>

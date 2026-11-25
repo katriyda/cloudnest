@@ -1,6 +1,6 @@
 [package]
 name = "cloudnest"
-version = "2.3.0"
+version = "2.4.0"
 edition = "2024"
 description = "A small, reliable personal cloud drive"
 license = "MIT"

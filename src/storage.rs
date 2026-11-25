@@ -37,6 +37,40 @@ pub async fn ensure_quota(
     Ok(())
 }
 
+/// 尚未完成的分片上传占用的磁盘额度（按声明的总大小预留）。
+pub async fn pending_upload_bytes(pool: &SqlitePool, owner_id: i64) -> Result<i64, AppError> {
+    let pending: i64 =
+        sqlx::query_scalar("SELECT COALESCE(SUM(total_size), 0) FROM uploads WHERE user_id = ?")
+            .bind(owner_id)
+            .fetch_one(pool)
+            .await?;
+    Ok(pending)
+}
+
+/// 已用空间 + 未完成上传预留 + 本次需要都不超过配额。
+pub async fn ensure_quota_with_pending(
+    pool: &SqlitePool,
+    owner_id: i64,
+    quota_bytes: i64,
+    additional: i64,
+) -> Result<(), AppError> {
+    if quota_bytes <= 0 {
+        return Ok(());
+    }
+    let used = usage_bytes(pool, owner_id).await?;
+    let pending = pending_upload_bytes(pool, owner_id).await?;
+    if used.saturating_add(pending).saturating_add(additional) > quota_bytes {
+        return Err(AppError::BadRequest(format!(
+            "存储空间不足：已用 {}，等待中的上传 {}，本次需要 {}，可用空间 {}",
+            util::human_size(used),
+            util::human_size(pending),
+            util::human_size(additional),
+            util::human_size(quota_bytes)
+        )));
+    }
+    Ok(())
+}
+
 pub async fn active_names(
     pool: &SqlitePool,
     owner_id: i64,

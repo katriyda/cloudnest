@@ -316,6 +316,9 @@ cross build --release --locked --target aarch64-unknown-linux-musl
 | 浏览器无法访问 | 仅监听回环、防火墙、代理未启动 | 检查 `listen`、防火墙规则与反向代理配置 |
 | 上传大文件返回 413 | 代理请求体限制过小 | 调整 Nginx `client_max_body_size`（Caddy 默认无限制） |
 | 反向代理返回 502 | 上游服务未运行或地址错误 | 确认 `systemctl status cloudnest.service` 与 `proxy_pass` 地址 |
+| 登录返回 429 | 该用户名 15 分钟内失败次数超过 10 次，或密码校验并发已满 | 等待响应头 `Retry-After` 指定的秒数后重试；在反向代理层补充限流 |
+| 分享解锁返回 429 | 同一分享 10 分钟内密码错误超过 5 次 | 等待 `Retry-After` 秒后重试，或让分享者重置密码 |
+| 分享页提示“限制了下载次数”且不显示预览 | 该分享设置了下载次数上限，预览被关闭以免绕过计数 | 属预期行为；需要在线预览时取消下载次数上限 |
 | HTTPS 下登录反复跳转 | `public_url` 与 `secure_cookies` 配置不一致 | 设置正确的 https `public_url`，开启 `secure_cookies` |
 | 下载校验失败 | 下载不完整或镜像文件不一致 | 重新下载并核对 `.sha256` / `SHA256SUMS` |
 | 磁盘写入失败 | 数据盘满或配额已满 | 检查 `df -h` 与应用日志；管理员调整配额 |

@@ -5,6 +5,7 @@ pub mod settings;
 pub mod shares;
 pub mod trash;
 
+use crate::auth::AdminUser;
 use crate::state::AppState;
 use askama::Template;
 use axum::Router;
@@ -17,6 +18,7 @@ use tower_http::trace::TraceLayer;
 
 const APP_CSS: &str = include_str!("../../static/app.css");
 const APP_JS: &str = include_str!("../../static/app.js");
+const THEME_JS: &str = include_str!("../../static/theme.js");
 const HTMX_JS: &str = include_str!("../../static/htmx.min.js");
 const FAVICON: &str = include_str!("../../static/favicon.svg");
 const FONT_UI_400: &[u8] =
@@ -32,13 +34,17 @@ const FONT_MONO_400: &[u8] =
 const FONT_MONO_500: &[u8] =
     include_bytes!("../../static/fonts/ibm-plex-mono-latin-500-normal.woff2");
 
-/// 按当前生效配置设置请求体上限，配置热更新后无需重启即可生效。
-async fn dynamic_body_limit(
-    State(state): State<AppState>,
-    mut request: Request,
-    next: Next,
-) -> Response {
-    let limit = state.config().max_upload_bytes() as usize;
+/// 非上传接口的请求体上限。表单/JSON 提取器会整体缓冲请求体，必须保持很小，
+/// 否则未认证接口（例如 /login）可被超大请求体耗尽内存。
+const FORM_BODY_BYTES: usize = 1024 * 1024;
+
+/// 仅对 multipart 上传接口放宽到配置值（流式读取）；分片接口由路由级 16 MiB 覆盖。
+async fn body_limits(State(state): State<AppState>, mut request: Request, next: Next) -> Response {
+    let limit = if request.uri().path() == "/files/upload" {
+        state.config().max_upload_bytes() as usize
+    } else {
+        FORM_BODY_BYTES
+    };
     DefaultBodyLimit::max(limit).apply(&mut request);
     next.run(request).await
 }
@@ -49,6 +55,7 @@ pub fn router(state: AppState) -> Router {
         .route("/healthz", get(health))
         .route("/static/app.css", get(asset_css))
         .route("/static/app.js", get(asset_js))
+        .route("/static/theme.js", get(asset_theme))
         .route("/static/htmx.min.js", get(asset_htmx))
         .route("/static/favicon.svg", get(asset_favicon))
         .route(
@@ -134,11 +141,11 @@ pub fn router(state: AppState) -> Router {
         .route("/admin/update/apply", post(settings::apply_update))
         .route("/api/version", get(api_version))
         .fallback(not_found)
+        .layer(middleware::from_fn_with_state(state.clone(), body_limits))
         .layer(middleware::from_fn_with_state(
             state.clone(),
-            dynamic_body_limit,
+            security_headers,
         ))
-        .layer(middleware::from_fn(security_headers))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }
@@ -177,8 +184,19 @@ pub fn redirect_with_cookie(
     Ok(response)
 }
 
-async fn security_headers(req: Request, next: Next) -> Response {
+async fn security_headers(State(state): State<AppState>, req: Request, next: Next) -> Response {
     let mut response = next.run(req).await;
+    let needs_no_store = {
+        let headers = response.headers();
+        !headers.contains_key(header::CACHE_CONTROL)
+            && headers
+                .get(header::CONTENT_TYPE)
+                .and_then(|value| value.to_str().ok())
+                .is_some_and(|value| {
+                    value.starts_with("text/html") || value.starts_with("application/json")
+                })
+    };
+    let https = state.config().secure_cookies;
     let headers = response.headers_mut();
     headers.insert(
         header::X_CONTENT_TYPE_OPTIONS,
@@ -195,13 +213,25 @@ async fn security_headers(req: Request, next: Next) -> Response {
     headers.insert(
         header::HeaderName::from_static("content-security-policy"),
         HeaderValue::from_static(
-            "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self'; frame-src 'self'; frame-ancestors 'self'; base-uri 'none'; form-action 'self'; object-src 'none'",
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self'; frame-src 'self'; frame-ancestors 'self'; base-uri 'none'; form-action 'self'; object-src 'none'",
         ),
     );
     headers.insert(
         header::HeaderName::from_static("permissions-policy"),
         HeaderValue::from_static("camera=(), microphone=(), geolocation=()"),
     );
+    if needs_no_store {
+        headers.insert(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("private, no-store"),
+        );
+    }
+    if https {
+        headers.insert(
+            header::STRICT_TRANSPORT_SECURITY,
+            HeaderValue::from_static("max-age=31536000; includeSubDomains"),
+        );
+    }
     response
 }
 
@@ -217,7 +247,7 @@ async fn health(State(state): State<AppState>) -> Response {
         Ok(_) => (StatusCode::OK, "ok").into_response(),
         Err(err) => {
             tracing::error!("健康检查失败: {err}");
-            (StatusCode::SERVICE_UNAVAILABLE, "database unavailable").into_response()
+            (StatusCode::SERVICE_UNAVAILABLE, "unavailable").into_response()
         }
     }
 }
@@ -237,6 +267,19 @@ async fn asset_css() -> Response {
 
 async fn asset_js() -> Response {
     let mut response = APP_JS.into_response();
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/javascript; charset=utf-8"),
+    );
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("public, max-age=0, must-revalidate"),
+    );
+    response
+}
+
+async fn asset_theme() -> Response {
+    let mut response = THEME_JS.into_response();
     response.headers_mut().insert(
         header::CONTENT_TYPE,
         HeaderValue::from_static("application/javascript; charset=utf-8"),
@@ -310,7 +353,7 @@ async fn asset_favicon() -> Response {
     response
 }
 
-async fn api_version() -> Response {
+async fn api_version(_admin: AdminUser) -> Response {
     axum::Json(serde_json::json!({
         "version": crate::cli::VERSION,
         "web_update": crate::update::web_update_supported(),

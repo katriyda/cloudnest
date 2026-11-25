@@ -161,13 +161,17 @@ async fn serve(
         cfg.listen
     );
     let state = AppState::with_config_file(cfg, config_path).await?;
+    // 定期清理中断的分片上传（超过 24 小时），避免临时文件长期占用磁盘。
     let cleanup_state = state.clone();
     tokio::spawn(async move {
-        let _ = crate::storage::cleanup_stale_uploads(
-            &cleanup_state,
-            crate::util::now_ts() - 7 * 24 * 60 * 60,
-        )
-        .await;
+        let mut ticker = tokio::time::interval(std::time::Duration::from_secs(15 * 60));
+        loop {
+            ticker.tick().await;
+            let cutoff = crate::util::now_ts() - 24 * 60 * 60;
+            if let Err(err) = crate::storage::cleanup_stale_uploads(&cleanup_state, cutoff).await {
+                tracing::warn!("清理未完成上传失败: {err}");
+            }
+        }
     });
     let listen = state.config().listen.clone();
     let listener = tokio::net::TcpListener::bind(&listen)
@@ -284,8 +288,8 @@ async fn update() -> CliResult<()> {
     let asset_name = crate::update::release_asset_name().map_err(|e| fail(e.to_string()))?;
     let temp = tempfile::TempDir::new().map_err(|e| fail(format!("创建临时目录失败: {e}")))?;
     println!("下载 {asset_name} …");
-    let staged =
-        crate::update::stage_release(&release, temp.path()).map_err(|e| fail(e.to_string()))?;
+    let staged = crate::update::stage_release(&release, temp.path(), &service.api_base())
+        .map_err(|e| fail(e.to_string()))?;
 
     // 替换程序前先备份数据库；失败则中止更新。
     let config = Config::load(&default_config_path())?;

@@ -3,6 +3,7 @@ pub mod cli;
 pub mod config;
 pub mod db;
 pub mod error;
+pub mod ratelimit;
 pub mod routes;
 pub mod state;
 pub mod storage;

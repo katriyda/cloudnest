@@ -26,6 +26,15 @@ pub struct Common {
     pub file_count: i64,
 }
 
+/// 提示信息来自 URL 查询参数，只保留可见字符并限制长度，避免被拼接成长篇欺骗文案。
+fn flash_message(value: &str) -> String {
+    value
+        .chars()
+        .filter(|c| !c.is_control())
+        .take(200)
+        .collect()
+}
+
 pub async fn build_common(
     state: &AppState,
     user: &crate::auth::SessionUser,
@@ -65,11 +74,11 @@ pub async fn build_common(
     let flash = match (ok, err) {
         (Some(message), _) if !message.is_empty() => Some(Flash {
             kind: "ok".to_string(),
-            message: message.to_string(),
+            message: flash_message(message),
         }),
         (_, Some(message)) if !message.is_empty() => Some(Flash {
             kind: "err".to_string(),
-            message: message.to_string(),
+            message: flash_message(message),
         }),
         _ => None,
     };
@@ -328,6 +337,8 @@ pub struct SharePage {
     pub back_url: String,
     pub text_content: String,
     pub text_truncated: bool,
+    /// 该分享设置了下载次数上限：不自动内联预览，避免预览消耗次数或绕过计数。
+    pub download_limited: bool,
 }
 
 pub struct SharePasswordPage {

@@ -1209,11 +1209,22 @@ async fn update_check_and_staging_via_local_api() {
     t.state.updates.set_api_base(base);
     let (cookie, _csrf) = setup_admin(&t).await;
 
+    // 版本接口只对管理员开放，避免向匿名访问者泄露版本信息。
     let response = send(
         &t.app,
         Method::GET,
         "/api/version",
         None,
+        Body::empty(),
+        None,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::SEE_OTHER);
+    let response = send(
+        &t.app,
+        Method::GET,
+        "/api/version",
+        Some(&cookie),
         Body::empty(),
         None,
     )
@@ -1390,4 +1401,268 @@ async fn settings_and_update_are_admin_only() {
     )
     .await;
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}
+
+// ---- 安全回归测试（限流、限次、重定向、请求体、密码强度） ----
+
+async fn create_share_for(
+    t: &TestApp,
+    cookie: &str,
+    csrf: &str,
+    file_id: i64,
+    password: Option<&str>,
+    max_downloads: Option<&str>,
+) -> String {
+    let file_id_text = file_id.to_string();
+    let mut pairs: Vec<(&str, &str)> = vec![("csrf", csrf), ("file_id", &file_id_text)];
+    if let Some(password) = password {
+        pairs.push(("password", password));
+    }
+    if let Some(max_downloads) = max_downloads {
+        pairs.push(("max_downloads", max_downloads));
+    }
+    let response = send(
+        &t.app,
+        Method::POST,
+        "/shares/create",
+        Some(cookie),
+        form_body(&pairs),
+        Some("application/x-www-form-urlencoded"),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::SEE_OTHER, "share created");
+    sqlx::query_scalar("SELECT token FROM shares WHERE file_id = ? ORDER BY id DESC LIMIT 1")
+        .bind(file_id)
+        .fetch_one(&t.state.pool)
+        .await
+        .expect("share token")
+}
+
+#[tokio::test]
+async fn login_is_rate_limited_after_repeated_failures() {
+    let t = test_app().await;
+    let (_cookie, _csrf) = setup_admin(&t).await;
+    for _ in 0..10 {
+        let response = send(
+            &t.app,
+            Method::POST,
+            "/login",
+            None,
+            form_body(&[("username", "admin"), ("password", "wrong-password")]),
+            Some("application/x-www-form-urlencoded"),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+    let response = send(
+        &t.app,
+        Method::POST,
+        "/login",
+        None,
+        form_body(&[("username", "admin"), ("password", "wrong-password")]),
+        Some("application/x-www-form-urlencoded"),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+    assert!(
+        response.headers().get(header::RETRY_AFTER).is_some(),
+        "retry-after header"
+    );
+
+    // 其他用户名不受影响，避免一个账号拖垮所有人的登录。
+    let response = send(
+        &t.app,
+        Method::POST,
+        "/login",
+        None,
+        form_body(&[("username", "nobody"), ("password", "wrong-password")]),
+        Some("application/x-www-form-urlencoded"),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn unknown_accounts_use_the_same_generic_error() {
+    let t = test_app().await;
+    let (_cookie, _csrf) = setup_admin(&t).await;
+    let response = send(
+        &t.app,
+        Method::POST,
+        "/login",
+        None,
+        form_body(&[("username", "ghost-user"), ("password", "wrong-password")]),
+        Some("application/x-www-form-urlencoded"),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    let html = body_text(response).await;
+    assert!(html.contains("用户名或密码错误"));
+    assert!(!html.contains("不存在"));
+}
+
+#[tokio::test]
+async fn share_unlock_is_rate_limited() {
+    let t = test_app().await;
+    let (cookie, csrf) = setup_admin(&t).await;
+    let file_id = upload(&t, &cookie, &csrf, 0, "", "locked.txt", b"locked content").await;
+    let token = create_share_for(&t, &cookie, &csrf, file_id, Some("share-pass-123"), None).await;
+
+    for _ in 0..5 {
+        let response = send(
+            &t.app,
+            Method::POST,
+            &format!("/s/{token}/unlock"),
+            None,
+            form_body(&[("password", "wrong")]),
+            Some("application/x-www-form-urlencoded"),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+    let response = send(
+        &t.app,
+        Method::POST,
+        &format!("/s/{token}/unlock"),
+        None,
+        form_body(&[("password", "wrong")]),
+        Some("application/x-www-form-urlencoded"),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+}
+
+#[tokio::test]
+async fn raw_content_counts_towards_download_limit() {
+    let t = test_app().await;
+    let (cookie, csrf) = setup_admin(&t).await;
+    let file_id = upload(
+        &t,
+        &cookie,
+        &csrf,
+        0,
+        "",
+        "limited.txt",
+        b"limited secret content",
+    )
+    .await;
+    let token = create_share_for(&t, &cookie, &csrf, file_id, None, Some("1")).await;
+
+    // 限次分享页面不自动内联内容，避免预览绕过计数。
+    let response = send(
+        &t.app,
+        Method::GET,
+        &format!("/s/{token}"),
+        None,
+        Body::empty(),
+        None,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let html = body_text(response).await;
+    assert!(html.contains("限制了下载次数"), "limited notice shown");
+    assert!(
+        !html.contains("limited secret content"),
+        "content must not be rendered for limited shares"
+    );
+
+    // raw 通道同样计入次数：第一次 200，第二次被拒。
+    let response = send(
+        &t.app,
+        Method::GET,
+        &format!("/s/{token}/raw"),
+        None,
+        Body::empty(),
+        None,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let bytes = to_bytes(response.into_body(), 1024).await.unwrap();
+    assert_eq!(&bytes[..], b"limited secret content");
+
+    let response = send(
+        &t.app,
+        Method::GET,
+        &format!("/s/{token}/raw"),
+        None,
+        Body::empty(),
+        None,
+    )
+    .await;
+    assert!(
+        response.status() == StatusCode::BAD_REQUEST || response.status() == StatusCode::NOT_FOUND,
+        "second raw fetch blocked, got {}",
+        response.status()
+    );
+    let count: i64 = sqlx::query_scalar("SELECT download_count FROM shares WHERE token = ?")
+        .bind(&token)
+        .fetch_one(&t.state.pool)
+        .await
+        .unwrap();
+    assert_eq!(count, 1, "raw counts as one download");
+}
+
+#[tokio::test]
+async fn share_password_minimum_length_is_enforced() {
+    let t = test_app().await;
+    let (cookie, csrf) = setup_admin(&t).await;
+    let file_id = upload(&t, &cookie, &csrf, 0, "", "pw.txt", b"pw content").await;
+    let response = send(
+        &t.app,
+        Method::POST,
+        "/shares/create",
+        Some(&cookie),
+        form_body(&[
+            ("csrf", &csrf),
+            ("file_id", &file_id.to_string()),
+            ("password", "a"),
+        ]),
+        Some("application/x-www-form-urlencoded"),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn login_next_never_redirects_offsite() {
+    let t = test_app().await;
+    let (_cookie, _csrf) = setup_admin(&t).await;
+    for next in ["/\\evil.example", "//evil.example", "https://evil.example"] {
+        let response = send(
+            &t.app,
+            Method::POST,
+            "/login",
+            None,
+            form_body(&[
+                ("username", "admin"),
+                ("password", "admin-password-123"),
+                ("next", next),
+            ]),
+            Some("application/x-www-form-urlencoded"),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert_eq!(
+            response.headers().get(header::LOCATION).unwrap(),
+            "/files",
+            "unsafe next {next} must fall back"
+        );
+    }
+}
+
+#[tokio::test]
+async fn oversized_form_body_is_rejected() {
+    let t = test_app().await;
+    let (_cookie, _csrf) = setup_admin(&t).await;
+    let body = format!("username=admin&password={}", "x".repeat(2_000_000));
+    let response = send(
+        &t.app,
+        Method::POST,
+        "/login",
+        None,
+        Body::from(body),
+        Some("application/x-www-form-urlencoded"),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
 }

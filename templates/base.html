@@ -8,15 +8,7 @@
 <meta name="htmx-config" content='{"noSwap":[204,304,"4xx","5xx"]}'>
 <link rel="stylesheet" href="/static/app.css">
 <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
-<script>
-(function () {
-  try {
-    var t = localStorage.getItem('cn-theme');
-    if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
-    else document.documentElement.setAttribute('data-theme', window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-  } catch (e) {}
-})();
-</script>
+<script src="/static/theme.js"></script>
 <script src="/static/htmx.min.js" defer></script>
 <script src="/static/app.js" defer></script>
 </head>

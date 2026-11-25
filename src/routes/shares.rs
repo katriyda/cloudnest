@@ -1,5 +1,6 @@
 use crate::auth::{self, CurrentUser};
 use crate::error::AppError;
+use crate::ratelimit::FailureLimit;
 use crate::state::AppState;
 use crate::util;
 use crate::views::{
@@ -14,6 +15,12 @@ use serde::Deserialize;
 use sqlx::FromRow;
 
 const UNLOCK_LIFETIME: i64 = 12 * 60 * 60;
+/// 同一分享连续 5 次密码错误后锁定 10 分钟，成功解锁清零。
+const UNLOCK_FAILURE_LIMIT: FailureLimit = FailureLimit::new(5, 600, 600);
+
+fn unlock_key(token: &str) -> String {
+    format!("unlock-token:{token}")
+}
 
 #[derive(FromRow, Clone)]
 struct ShareRecord {
@@ -83,20 +90,41 @@ async fn load_share(state: &AppState, token: &str) -> Result<ShareRecord, AppErr
     record.ok_or_else(|| AppError::NotFound("分享链接不存在或已被取消".to_string()))
 }
 
+/// Host 头只允许字母、数字、点、短横线、冒号和 IPv6 方括号。
+fn host_is_safe(host: &str) -> bool {
+    !host.is_empty()
+        && host.len() <= 255
+        && host
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | ':' | '[' | ']'))
+}
+
 fn share_url(state: &AppState, headers: &HeaderMap, token: &str) -> String {
     let config = state.config();
     if let Some(public_url) = &config.public_url {
         return format!("{public_url}/s/{token}");
     }
+    // 未配置 public_url 时只能参考 Host 头；先校验字符集，避免被注入伪造域名。
+    // 头值不合法时回退到相对路径，管理员应配置 public_url 才能获得绝对链接。
     let host = headers
         .get(header::HOST)
         .and_then(|h| h.to_str().ok())
-        .unwrap_or("localhost");
-    let scheme = headers
+        .unwrap_or("");
+    let host_ok = host_is_safe(host);
+    let scheme = if headers
         .get("x-forwarded-proto")
         .and_then(|h| h.to_str().ok())
-        .unwrap_or("http");
-    format!("{scheme}://{host}/s/{token}")
+        .is_some_and(|value| value.eq_ignore_ascii_case("https"))
+    {
+        "https"
+    } else {
+        "http"
+    };
+    if host_ok {
+        format!("{scheme}://{host}/s/{token}")
+    } else {
+        format!("/s/{token}")
+    }
 }
 
 #[derive(Deserialize, Default)]
@@ -262,9 +290,7 @@ pub async fn create(
         .filter(|p| !p.is_empty())
     {
         Some(password) => {
-            if password.chars().count() > 128 {
-                return Err(AppError::BadRequest("提取密码过长".to_string()));
-            }
+            util::share_password_valid(password)?;
             Some(auth::hash_password(password.to_string()).await?)
         }
         None => None,
@@ -337,6 +363,28 @@ pub async fn delete(
 
 fn share_cookie_name(token: &str) -> String {
     format!("cn_s_{token}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn host_header_must_be_simple() {
+        assert!(host_is_safe("cloud.example.com"));
+        assert!(host_is_safe("127.0.0.1:8080"));
+        assert!(host_is_safe("[::1]:8080"));
+        assert!(!host_is_safe("evil/host"));
+        assert!(!host_is_safe("bad\\host"));
+        assert!(!host_is_safe("evil.example\"x"));
+        assert!(!host_is_safe(""));
+        assert!(!host_is_safe("host name"));
+    }
+
+    #[test]
+    fn unlock_cookie_name_is_scoped() {
+        assert_eq!(share_cookie_name("abc"), "cn_s_abc");
+    }
 }
 
 async fn is_unlocked(state: &AppState, record: &ShareRecord, headers: &HeaderMap) -> bool {
@@ -412,6 +460,8 @@ pub async fn public_page(
     let back_url = String::new();
     let mut text_content = String::new();
     let mut text_truncated = false;
+    // 限次分享不自动加载任何文件内容，避免预览绕过下载次数限制。
+    let download_limited = record.max_downloads.is_some();
 
     if record.is_dir != 0 {
         let dir_id = query.dir.unwrap_or(record.file_id).max(0);
@@ -489,10 +539,13 @@ pub async fn public_page(
         file_name = record.file_name.clone();
         raw_url = format!("/s/{}/raw", record.token);
         download_url = format!("/s/{}/download", record.token);
-        let owned = load_public_file(&state, &record, record.file_id).await?;
-        if util::preview_kind(&owned.name, owned.mime.as_deref()) == "text" {
-            (text_content, text_truncated) =
-                crate::routes::files::load_text_preview(&state, record.owner_id, &owned).await?;
+        if !download_limited {
+            let owned = load_public_file(&state, &record, record.file_id).await?;
+            if util::preview_kind(&owned.name, owned.mime.as_deref()) == "text" {
+                (text_content, text_truncated) =
+                    crate::routes::files::load_text_preview(&state, record.owner_id, &owned)
+                        .await?;
+            }
         }
     }
 
@@ -503,7 +556,7 @@ pub async fn public_page(
         is_file,
         file_name: if is_file { file_name } else { String::new() },
         file_size_text: util::human_size(record.size),
-        file_preview: if is_file {
+        file_preview: if is_file && !download_limited {
             util::preview_kind(&record.file_name, record.mime.as_deref()).to_string()
         } else {
             "none".to_string()
@@ -523,6 +576,7 @@ pub async fn public_page(
         back_url,
         text_content,
         text_truncated,
+        download_limited,
     };
     super::render(&ShareTemplate { page }, StatusCode::OK).await
 }
@@ -588,8 +642,9 @@ pub async fn public_file_page(
     } else {
         String::new()
     };
+    let download_limited = record.max_downloads.is_some();
     let (text_content, text_truncated) =
-        if util::preview_kind(&file.name, file.mime.as_deref()) == "text" {
+        if !download_limited && util::preview_kind(&file.name, file.mime.as_deref()) == "text" {
             crate::routes::files::load_text_preview(&state, record.owner_id, &file).await?
         } else {
             (String::new(), false)
@@ -601,7 +656,11 @@ pub async fn public_file_page(
         is_file: true,
         file_name: file.name.clone(),
         file_size_text: util::human_size(file.size),
-        file_preview: util::preview_kind(&file.name, file.mime.as_deref()).to_string(),
+        file_preview: if download_limited {
+            "none".to_string()
+        } else {
+            util::preview_kind(&file.name, file.mime.as_deref()).to_string()
+        },
         file_ext: util::extension_label(&file.name),
         file_hue: util::hue_for(&file.name),
         raw_url: format!("/s/{}/raw/{file_id}", record.token),
@@ -617,6 +676,7 @@ pub async fn public_file_page(
         back_url,
         text_content,
         text_truncated,
+        download_limited,
     };
     super::render(&ShareTemplate { page }, StatusCode::OK).await
 }
@@ -631,15 +691,34 @@ pub async fn unlock(
     Path(token): Path<String>,
     Form(form): Form<UnlockForm>,
 ) -> Result<Response, AppError> {
+    if token.is_empty() || token.len() > 128 {
+        return Err(AppError::NotFound("分享链接不存在或已被取消".to_string()));
+    }
     let record = load_share(&state, &token).await?;
     require_access(&state, &record)?;
     let Some(password_hash) = record.password_hash.as_deref() else {
         return Ok(Redirect::to(&format!("/s/{token}")).into_response());
     };
-    if !auth::verify_password(form.password, password_hash.to_string()).await? {
+    if let Some(seconds) = state.limits.blocked_seconds(&unlock_key(&token)) {
+        tracing::warn!("分享 {token} 提取密码尝试被限流");
+        return Err(AppError::rate_limited("尝试过于频繁，请稍后再试", seconds));
+    }
+    let Some(_slot) = state.password_slot().await else {
+        return Err(AppError::rate_limited("请求过多，请稍后再试", 30));
+    };
+    let wrong = form.password.chars().count() > 128
+        || !auth::verify_password(form.password, password_hash.to_string()).await?;
+    if wrong {
+        if let Some(seconds) = state
+            .limits
+            .record_failure(&unlock_key(&token), UNLOCK_FAILURE_LIMIT)
+        {
+            tracing::warn!("分享 {token} 提取密码错误次数过多，已临时锁定 {seconds} 秒");
+        }
         let page = share_password_page(&record, Some("提取密码错误".to_string()));
         return super::render(&SharePasswordTemplate { page }, StatusCode::UNAUTHORIZED).await;
     }
+    state.limits.reset(&unlock_key(&token));
     let value = auth::share_unlock_value(&state.pool, &token, password_hash).await;
     let cookie = auth::cookie_header(
         &share_cookie_name(&token),
@@ -731,6 +810,8 @@ async fn public_raw_file(
 ) -> Result<Response, AppError> {
     ensure_unlocked(state, record, headers).await?;
     let file = load_public_file(state, record, file_id).await?;
+    // 内联原始内容同样是一次完整的内容获取，必须计入下载次数，否则限次分享可被绕过。
+    increment_download(state, record).await?;
     crate::routes::files::serve_owned_file(state, record.owner_id, &file, true, headers).await
 }
 

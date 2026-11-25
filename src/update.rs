@@ -13,6 +13,9 @@ use std::time::Duration;
 pub const DEFAULT_API_BASE: &str = "https://api.github.com";
 pub const REPO: &str = "katriyda/cloudnest";
 const USER_AGENT: &str = "cloudnest-updater";
+/// 发布包大小上限，防止更新源返回超大响应拖垮内存。
+const MAX_ASSET_BYTES: u64 = 256 * 1024 * 1024;
+const MAX_CHECKSUM_BYTES: u64 = 1024 * 1024;
 
 #[derive(Debug)]
 pub struct UpdateError(pub String);
@@ -147,7 +150,8 @@ impl UpdateService {
     /// 检查、下载、校验并解压新版本到 work_dir（该目录应已存在且为空）。
     pub fn stage_latest(&self, work_dir: &Path) -> UpdateResult<StagedUpdate> {
         let release = self.latest()?;
-        stage_release(&release, work_dir)
+        let api_base = self.api_base();
+        stage_release(&release, work_dir, &api_base)
     }
 }
 
@@ -234,6 +238,51 @@ pub fn is_newer(latest: &str, current: &str) -> bool {
     false
 }
 
+/// 拆出 URL 的 (scheme, host)，只用于下载地址白名单校验。
+fn split_url(url: &str) -> Option<(String, String)> {
+    let (scheme, rest) = url.split_once("://")?;
+    let authority = rest.split(['/', '?', '#']).next()?;
+    if authority.is_empty() || authority.contains('@') {
+        return None;
+    }
+    let host = if let Some(rest) = authority.strip_prefix('[') {
+        let (addr, _) = rest.split_once(']')?;
+        format!("[{}]", addr.to_ascii_lowercase())
+    } else {
+        authority
+            .split(':')
+            .next()
+            .unwrap_or("")
+            .to_ascii_lowercase()
+    };
+    if host.is_empty() {
+        return None;
+    }
+    Some((scheme.to_ascii_lowercase(), host))
+}
+
+fn is_loopback_host(host: &str) -> bool {
+    host == "localhost" || host.starts_with("127.") || host == "[::1]"
+}
+
+/// 更新下载地址必须来自配置的更新源或官方 GitHub 资产域名（HTTPS）。
+/// 允许 http 仅用于本机回环地址（测试/离线镜像）。
+pub fn is_allowed_download_url(url: &str, api_base: &str) -> bool {
+    let Some((scheme, host)) = split_url(url) else {
+        return false;
+    };
+    let Some((api_scheme, api_host)) = split_url(api_base) else {
+        return false;
+    };
+    if host == api_host {
+        return scheme == "https"
+            || (scheme == "http" && api_scheme == "http" && is_loopback_host(&host));
+    }
+    (api_host == "api.github.com" || api_host == "github.com")
+        && scheme == "https"
+        && (host == "github.com" || host.ends_with(".githubusercontent.com"))
+}
+
 /// 从 SHA256SUMS 或 asset.sha256 中取出对应文件的校验值。
 pub fn checksum_for(text: &str, asset_name: &str) -> Option<String> {
     text.lines().find_map(|line| {
@@ -246,7 +295,11 @@ pub fn checksum_for(text: &str, asset_name: &str) -> Option<String> {
 }
 
 /// 下载发布包、校验 SHA256 并解出 cloudnest 可执行文件。
-pub fn stage_release(release: &Release, work_dir: &Path) -> UpdateResult<StagedUpdate> {
+pub fn stage_release(
+    release: &Release,
+    work_dir: &Path,
+    api_base: &str,
+) -> UpdateResult<StagedUpdate> {
     let asset_name = release_asset_name()?;
     let asset_url = release
         .asset(&asset_name)
@@ -258,13 +311,31 @@ pub fn stage_release(release: &Release, work_dir: &Path) -> UpdateResult<StagedU
         .ok_or_else(|| fail("发布中缺少 SHA256 校验文件"))?
         .url
         .clone();
+    // 只允许从配置的更新源或官方 GitHub 资产域下载，避免被篡改的 API 响应把下载引到任意主机。
+    if !is_allowed_download_url(&asset_url, api_base) {
+        return Err(fail(format!(
+            "下载地址不在允许的更新源内，拒绝安装：{asset_url}"
+        )));
+    }
+    if !is_allowed_download_url(&checksum_url, api_base) {
+        return Err(fail(format!(
+            "校验文件地址不在允许的更新源内，拒绝安装：{checksum_url}"
+        )));
+    }
     let checksum_text = http_get(&checksum_url, "text/plain")?
+        .into_with_config()
+        .limit(MAX_CHECKSUM_BYTES)
         .read_to_string()
         .map_err(|e| fail(format!("读取校验文件失败: {e}")))?;
     let expected = checksum_for(&checksum_text, &asset_name)
         .ok_or_else(|| fail(format!("校验文件中没有 {asset_name}")))?;
+    if expected.len() != 64 || !expected.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(fail("校验文件中的 SHA256 格式不正确，拒绝安装"));
+    }
 
     let bytes = http_get(&asset_url, "application/octet-stream")?
+        .into_with_config()
+        .limit(MAX_ASSET_BYTES)
         .read_to_vec()
         .map_err(|e| fail(format!("下载新版本失败: {e}")))?;
     let actual = hex::encode(Sha256::digest(&bytes));
@@ -443,6 +514,36 @@ mod tests {
         assert!(!is_newer("v2.3.0", "2.3.0"));
         assert!(!is_newer("v2.2.9", "2.3.0"));
         assert!(!is_newer("v3.0.0-beta", "3.0.0"));
+    }
+
+    #[test]
+    fn download_urls_are_restricted() {
+        // 默认更新源：只接受 GitHub 资产域名。
+        assert!(is_allowed_download_url(
+            "https://github.com/katriyda/cloudnest/releases/download/v1/x.tar.gz",
+            DEFAULT_API_BASE
+        ));
+        assert!(is_allowed_download_url(
+            "https://release-assets.githubusercontent.com/x.tar.gz",
+            DEFAULT_API_BASE
+        ));
+        assert!(!is_allowed_download_url(
+            "https://evil.example/x.tar.gz",
+            DEFAULT_API_BASE
+        ));
+        assert!(!is_allowed_download_url(
+            "http://github.com/x.tar.gz",
+            DEFAULT_API_BASE
+        ));
+        assert!(!is_allowed_download_url(
+            "https://github.com@evil.example/x.tar.gz",
+            DEFAULT_API_BASE
+        ));
+        // 自建更新源：只接受同一个主机，且 http 仅限本机回环。
+        let base = "http://127.0.0.1:9";
+        assert!(is_allowed_download_url("http://127.0.0.1:9/asset", base));
+        assert!(!is_allowed_download_url("http://10.0.0.5/asset", base));
+        assert!(!is_allowed_download_url("https://evil.example/asset", base));
     }
 
     #[test]

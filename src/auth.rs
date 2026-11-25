@@ -9,6 +9,7 @@ use axum::http::header;
 use axum::http::request::Parts;
 use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
+use std::sync::OnceLock;
 
 pub const SESSION_COOKIE: &str = "cn_session";
 
@@ -35,7 +36,7 @@ impl FromRequestParts<AppState> for CurrentUser {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let token = get_cookie(&parts.headers, SESSION_COOKIE).ok_or(AppError::Unauthorized)?;
+        let token = get_session_cookie(&parts.headers).ok_or(AppError::Unauthorized)?;
         load_session(&state.pool, &token).await
     }
 }
@@ -155,6 +156,29 @@ pub fn cookie_header(
     cookie
 }
 
+/// 读取会话 Cookie：同名 Cookie 出现多个不同值时按失败处理，避免 Cookie tossing
+/// （例如同一父域下的其他子域注入同名 Cookie）劫持会话。
+pub fn get_session_cookie(headers: &HeaderMap) -> Option<String> {
+    let header = headers.get(header::COOKIE)?.to_str().ok()?;
+    let mut found: Option<String> = None;
+    for pair in header.split(';') {
+        let pair = pair.trim();
+        if let Some((key, value)) = pair.split_once('=')
+            && key == SESSION_COOKIE
+        {
+            match &found {
+                Some(existing) if existing != value => {
+                    tracing::warn!("检测到重复的会话 Cookie，已拒绝该请求");
+                    return None;
+                }
+                Some(_) => {}
+                None => found = Some(value.to_string()),
+            }
+        }
+    }
+    found
+}
+
 pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
     let header = headers.get(header::COOKIE)?.to_str().ok()?;
     for pair in header.split(';') {
@@ -184,6 +208,36 @@ pub async fn hash_password(password: String) -> Result<String, AppError> {
     })
     .await
     .map_err(|e| AppError::Internal(format!("密码哈希任务失败: {e}")))?
+}
+
+/// 对不存在的账号也执行一次等价的 Argon2 计算，抹平登录响应时间差异。
+pub async fn simulate_password_check(password: String) -> Result<(), AppError> {
+    tokio::task::spawn_blocking(move || {
+        let hash = dummy_password_hash();
+        if let Ok(parsed) = PasswordHash::new(&hash) {
+            let _ = Argon2::default().verify_password(password.as_bytes(), &parsed);
+        }
+    })
+    .await
+    .map_err(|e| AppError::Internal(format!("密码校验任务失败: {e}")))?;
+    Ok(())
+}
+
+/// 预热用于时序对齐的 Argon2 哈希，避免首次“账号不存在”请求明显偏慢。
+pub fn warm_password_dummy() {
+    let _ = dummy_password_hash();
+}
+
+fn dummy_password_hash() -> String {
+    static DUMMY: OnceLock<String> = OnceLock::new();
+    DUMMY
+        .get_or_init(|| {
+            Argon2::default()
+                .hash_password(b"cloudnest-dummy-password-never-used")
+                .map(|hash| hash.to_string())
+                .unwrap_or_default()
+        })
+        .clone()
 }
 
 pub async fn verify_password(password: String, hash: String) -> Result<bool, AppError> {

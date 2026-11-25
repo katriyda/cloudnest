@@ -10,6 +10,7 @@ pub enum AppError {
     Forbidden(String),
     NotFound(String),
     BadRequest(String),
+    TooManyRequests { message: String, retry_after: i64 },
     Internal(String),
 }
 
@@ -20,6 +21,7 @@ impl fmt::Display for AppError {
             Self::Forbidden(m) | Self::NotFound(m) | Self::BadRequest(m) | Self::Internal(m) => {
                 write!(f, "{m}")
             }
+            Self::TooManyRequests { message, .. } => write!(f, "{message}"),
         }
     }
 }
@@ -29,6 +31,14 @@ impl std::error::Error for AppError {}
 impl AppError {
     pub fn internal<E: fmt::Display>(err: E) -> Self {
         Self::Internal(format!("{err}"))
+    }
+
+    /// 请求过于频繁：429 + Retry-After。
+    pub fn rate_limited(message: impl Into<String>, retry_after: i64) -> Self {
+        Self::TooManyRequests {
+            message: message.into(),
+            retry_after: retry_after.max(1),
+        }
     }
 }
 
@@ -48,7 +58,8 @@ impl From<std::io::Error> for AppError {
 
 impl From<axum::extract::multipart::MultipartError> for AppError {
     fn from(value: axum::extract::multipart::MultipartError) -> Self {
-        Self::BadRequest(format!("上传没有完成，请重试。详情: {value}"))
+        tracing::warn!("上传请求解析失败: {value}");
+        Self::BadRequest("上传没有完成，请重试。".to_string())
     }
 }
 
@@ -66,19 +77,29 @@ impl From<axum::http::Error> for AppError {
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let (status, title, message) = match self {
+        let (status, title, message, retry_after) = match self {
             Self::Unauthorized => {
                 return (StatusCode::SEE_OTHER, [(header::LOCATION, "/login")]).into_response();
             }
-            Self::Forbidden(message) => (StatusCode::FORBIDDEN, "没有访问权限", message),
-            Self::NotFound(message) => (StatusCode::NOT_FOUND, "内容不可用", message),
-            Self::BadRequest(message) => (StatusCode::BAD_REQUEST, "操作没有完成", message),
+            Self::Forbidden(message) => (StatusCode::FORBIDDEN, "没有访问权限", message, None),
+            Self::NotFound(message) => (StatusCode::NOT_FOUND, "内容不可用", message, None),
+            Self::BadRequest(message) => (StatusCode::BAD_REQUEST, "操作没有完成", message, None),
+            Self::TooManyRequests {
+                message,
+                retry_after,
+            } => (
+                StatusCode::TOO_MANY_REQUESTS,
+                "请稍后再试",
+                message,
+                Some(retry_after),
+            ),
             Self::Internal(message) => {
                 tracing::error!("内部错误: {message}");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "出了点问题",
                     "请稍后重试。".to_string(),
+                    None,
                 )
             }
         };
@@ -87,7 +108,7 @@ impl IntoResponse for AppError {
             title: title.to_string(),
             message,
         };
-        match page.render() {
+        let mut response = match page.render() {
             Ok(html) => (
                 status,
                 [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
@@ -98,6 +119,12 @@ impl IntoResponse for AppError {
                 tracing::error!("错误页渲染失败: {err}");
                 (status, "出了点问题").into_response()
             }
+        };
+        if let Some(seconds) = retry_after
+            && let Ok(value) = axum::http::HeaderValue::from_str(&seconds.to_string())
+        {
+            response.headers_mut().insert(header::RETRY_AFTER, value);
         }
+        response
     }
 }

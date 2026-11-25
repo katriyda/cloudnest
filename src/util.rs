@@ -301,11 +301,63 @@ pub fn parse_range(header: &str, size: u64) -> Option<(u64, u64)> {
     Some((start, end))
 }
 
+/// 登录后的跳转目标必须是本站相对路径。
+/// 显式拒绝协议相对形式（`//host`）、反斜杠（浏览器会把 `\` 归一为 `/`，
+/// `/\evil.example` 会被解析成 `//evil.example`）、控制字符与非法 URI。
 pub fn safe_next(next: Option<&str>) -> String {
-    match next {
-        Some(value) if value.starts_with('/') && !value.starts_with("//") => value.to_string(),
-        _ => "/files".to_string(),
+    const FALLBACK: &str = "/files";
+    let Some(value) = next else {
+        return FALLBACK.to_string();
+    };
+    let value = value.trim();
+    if !relative_path_ok(value) {
+        return FALLBACK.to_string();
     }
+    value.to_string()
+}
+
+/// 仅接受本站相对路径：必须是单个前导 \`/\`，不含反斜杠、空白或控制字符，
+/// 百分号转义必须完整，且能被 http::Uri 解析为 path（不能带 scheme/authority）。
+fn relative_path_ok(value: &str) -> bool {
+    if !value.starts_with('/') || value.starts_with("//") || value.contains('\\') {
+        return false;
+    }
+    if value.chars().any(|c| c.is_control() || c.is_whitespace()) {
+        return false;
+    }
+    let bytes = value.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            if index + 2 >= bytes.len()
+                || !bytes[index + 1].is_ascii_hexdigit()
+                || !bytes[index + 2].is_ascii_hexdigit()
+            {
+                return false;
+            }
+            index += 3;
+        } else {
+            index += 1;
+        }
+    }
+    match axum::http::Uri::try_from(value) {
+        Ok(uri) => uri.scheme().is_none() && uri.authority().is_none(),
+        Err(_) => false,
+    }
+}
+
+/// 分享提取密码的最小长度；空值表示不设密码。
+pub fn share_password_valid(password: &str) -> Result<(), AppError> {
+    let len = password.chars().count();
+    if len < 6 {
+        return Err(AppError::BadRequest(
+            "提取密码至少需要 6 个字符".to_string(),
+        ));
+    }
+    if len > 128 {
+        return Err(AppError::BadRequest("提取密码最长 128 个字符".to_string()));
+    }
+    Ok(())
 }
 
 pub fn percent_decode_query(value: &str) -> String {
@@ -371,6 +423,23 @@ mod tests {
         taken.insert("report (1).pdf".to_string());
         assert_eq!(unique_name("report.pdf", &taken), "report (2).pdf");
         assert_eq!(unique_name("fresh.txt", &taken), "fresh.txt");
+    }
+
+    #[test]
+    fn next_targets() {
+        assert_eq!(safe_next(Some("/files?path=2")), "/files?path=2");
+        assert_eq!(safe_next(Some("/\\evil.example")), "/files");
+        assert_eq!(safe_next(Some("//evil.example")), "/files");
+        assert_eq!(safe_next(Some("https://evil.example")), "/files");
+        assert_eq!(safe_next(Some("/%zz")), "/files");
+        assert_eq!(safe_next(Some("/files\r\nLocation: //evil")), "/files");
+        assert_eq!(safe_next(None), "/files");
+    }
+
+    #[test]
+    fn share_passwords() {
+        assert!(share_password_valid("a").is_err());
+        assert!(share_password_valid("123456").is_ok());
     }
 
     #[test]
