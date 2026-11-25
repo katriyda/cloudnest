@@ -102,7 +102,7 @@
   </section>
 
   <section class="panel">
-    <div class="panel-head"><h2>新建账户</h2><span class="panel-note">初始密码可由管理员重置</span></div>
+    <div class="panel-head"><h2>新建账户</h2></div>
     <form method="post" action="/admin/users/create" class="create-user-form">
       <input type="hidden" name="csrf" value="{{ page.common.csrf }}">
       <label class="field">
@@ -113,6 +113,7 @@
       <label class="field">
         <span class="field-label">初始密码</span>
         <input type="password" name="password" required minlength="8" maxlength="128" autocomplete="new-password">
+        <span class="field-hint">至少 8 个字符，之后可由管理员重置</span>
       </label>
       <label class="field">
         <span class="field-label">存储空间（GB）</span>

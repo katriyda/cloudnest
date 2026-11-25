@@ -41,6 +41,34 @@
     if (event.key === 'Escape') setSidebar(false);
   });
 
+  // Compact action menus (mobile)
+  function closeActionMenus(except) {
+    $$('[data-actions].is-open').forEach((container) => {
+      if (container === except) return;
+      container.classList.remove('is-open');
+      const toggle = container.querySelector('[data-actions-toggle]');
+      if (toggle) toggle.setAttribute('aria-expanded', 'false');
+    });
+  }
+  document.addEventListener('click', (event) => {
+    const toggle = event.target.closest('[data-actions-toggle]');
+    if (toggle) {
+      const container = toggle.closest('[data-actions]');
+      if (container) {
+        const open = !container.classList.contains('is-open');
+        closeActionMenus(container);
+        container.classList.toggle('is-open', open);
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      }
+      event.preventDefault();
+      return;
+    }
+    closeActionMenus();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeActionMenus();
+  });
+
   // Flash dismiss
   $$('[data-dismiss]').forEach((btn) => btn.addEventListener('click', () => {
     const flash = btn.closest('.flash');
@@ -153,6 +181,10 @@
     const percentEl = $('#upload-percent');
     const meterEl = $('#upload-meter');
     let uploading = false;
+    // Cloudflare 免费版限制单个请求体 100 MB；超过阈值的文件改走分片通道，
+    // 每片 4 MB，远低于该上限，也便于断点续传。
+    const CHUNK_SIZE = 4 * 1024 * 1024;
+    const CHUNKED_THRESHOLD = 16 * 1024 * 1024;
 
     function showPanel() { if (panel) panel.hidden = false; }
     function setProgress(name, done, total, text) {
@@ -220,8 +252,13 @@
         xhr.setRequestHeader('X-Offset', String(offset));
         xhr.setRequestHeader('Content-Type', 'application/octet-stream');
         xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) resolve();
-          else reject(new Error('上传中断，请重试'));
+          if (xhr.status < 200 || xhr.status >= 300) {
+            reject(new Error('上传中断，请重试'));
+            return;
+          }
+          let data = null;
+          try { data = JSON.parse(xhr.responseText); } catch (e) {}
+          resolve(data);
         };
         xhr.onerror = () => reject(new Error('网络连接中断，请重试'));
         xhr.send(blob);
@@ -229,7 +266,6 @@
     }
 
     async function uploadChunked(file, relDir) {
-      const CHUNK = 4 * 1024 * 1024;
       const fingerprint = 'cn-up-' + [parentId, relDir || '', file.name, file.size, file.lastModified].join('|');
       let token = null, received = 0;
       try { token = localStorage.getItem(fingerprint); } catch (e) {}
@@ -247,24 +283,30 @@
         try { localStorage.setItem(fingerprint, token); } catch (e) {}
       }
       while (received < file.size) {
-        const end = Math.min(file.size, received + CHUNK);
+        const end = Math.min(file.size, received + CHUNK_SIZE);
         const blob = file.slice(received, end);
         let attempts = 0;
         while (true) {
-          try { await putChunk(token, received, blob); break; }
-          catch (err) {
+          try {
+            const result = await putChunk(token, received, blob);
+            // 以服务端确认的进度为准；响应丢失时也不会把同一片重复写入。
+            received = result && typeof result.received === 'number' ? result.received : end;
+            break;
+          } catch (err) {
             attempts++;
             if (attempts >= 4) throw err;
             const status = await chunkStatus(token).catch(() => null);
-            if (status) {
-              received = status.received || 0;
-              if (received >= file.size) break;
+            if (status && status.size === file.size) {
+              const serverReceived = Number(status.received) || 0;
+              if (serverReceived > received) {
+                // 这一片其实已经写成功了，只是响应没回来，从新进度继续。
+                received = serverReceived;
+                break;
+              }
             }
             await new Promise((resolve) => setTimeout(resolve, 700 * attempts));
           }
         }
-        if (received >= file.size) break;
-        received = end;
         setProgress(file.name, received, file.size, '上传中…');
       }
       const response = await fetch('/api/upload/complete/' + encodeURIComponent(token), {
@@ -285,7 +327,7 @@
       for (const item of items) {
         index++;
         try {
-          if (item.file.size > 16 * 1024 * 1024) await uploadChunked(item.file, item.relDir);
+          if (item.file.size > CHUNKED_THRESHOLD) await uploadChunked(item.file, item.relDir);
           else await uploadMultipart(item.file, item.relDir);
         } catch (err) {
           fail((err && err.message) || '上传没有完成，请重试');

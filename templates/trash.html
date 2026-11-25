@@ -37,17 +37,20 @@
     </div>
     <span class="cell size-cell">{{ entry.size_text }}</span>
     <span class="cell time-cell">{{ entry.deleted_text }}</span>
-    <div class="file-actions">
-      <form method="post" action="/trash/restore" class="inline-form">
-        <input type="hidden" name="csrf" value="{{ page.common.csrf }}">
-        <input type="hidden" name="id" value="{{ entry.id }}">
-        <button class="btn btn-small btn-quiet" type="submit">恢复</button>
-      </form>
-      <form method="post" action="/trash/delete" class="inline-form" data-confirm="确定永久删除“{{ entry.name }}”吗？此操作无法撤销。">
-        <input type="hidden" name="csrf" value="{{ page.common.csrf }}">
-        <input type="hidden" name="id" value="{{ entry.id }}">
-        <button class="btn btn-small btn-danger" type="submit">永久删除</button>
-      </form>
+    <div class="file-actions" data-actions>
+      <button class="icon-btn row-more" type="button" data-actions-toggle aria-haspopup="true" aria-expanded="false" aria-label="更多操作" title="更多操作">{% include "icons/more.svg" %}</button>
+      <div class="row-more-list" aria-label="回收站操作">
+        <form method="post" action="/trash/restore" class="inline-form">
+          <input type="hidden" name="csrf" value="{{ page.common.csrf }}">
+          <input type="hidden" name="id" value="{{ entry.id }}">
+          <button class="btn btn-small btn-quiet" type="submit">恢复</button>
+        </form>
+        <form method="post" action="/trash/delete" class="inline-form" data-confirm="确定永久删除“{{ entry.name }}”吗？此操作无法撤销。">
+          <input type="hidden" name="csrf" value="{{ page.common.csrf }}">
+          <input type="hidden" name="id" value="{{ entry.id }}">
+          <button class="btn btn-small btn-danger" type="submit">永久删除</button>
+        </form>
+      </div>
     </div>
   </div>
   {% endfor %}

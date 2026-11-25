@@ -80,17 +80,20 @@
           <span class="file-card-name" title="{{ entry.name }}">{{ entry.name }}</span>
           <span class="file-card-meta"><span>{% if entry.is_dir %}文件夹{% else %}{{ entry.size_text }}{% endif %}</span><span>{{ entry.updated_text }}</span></span>
         </a>
-        <div class="card-actions">
-          {% if !entry.is_dir %}<a class="icon-btn" href="/files/{{ entry.id }}/download" title="下载" aria-label="下载">{% include "icons/download.svg" %}</a>{% endif %}
-          <button class="icon-btn" type="button" hx-get="/files/{{ entry.id }}/dialog/rename" hx-target="#modal" hx-swap="innerHTML" title="重命名" aria-label="重命名">{% include "icons/edit.svg" %}</button>
-          <button class="icon-btn" type="button" hx-get="/files/{{ entry.id }}/dialog/move" hx-target="#modal" hx-swap="innerHTML" title="移动" aria-label="移动">{% include "icons/move.svg" %}</button>
-          <button class="icon-btn" type="button" hx-get="/shares/new?file_id={{ entry.id }}" hx-target="#modal" hx-swap="innerHTML" title="分享" aria-label="分享">{% include "icons/share.svg" %}</button>
-          <form method="post" action="/files/delete" class="inline-form" data-confirm="确定将“{{ entry.name }}”{% if entry.is_dir %}及其中的全部内容{% endif %}放入回收站吗？">
-            <input type="hidden" name="csrf" value="{{ page.common.csrf }}">
-            <input type="hidden" name="id" value="{{ entry.id }}">
-            <input type="hidden" name="return_path" value="{{ page.parent_id }}">
-            <button class="icon-btn danger" type="submit" title="删除" aria-label="删除">{% include "icons/trash.svg" %}</button>
-          </form>
+        <div class="card-actions" data-actions>
+          <button class="icon-btn row-more" type="button" data-actions-toggle aria-haspopup="true" aria-expanded="false" aria-label="更多操作" title="更多操作">{% include "icons/more.svg" %}</button>
+          <div class="row-more-list" aria-label="文件操作">
+            {% if !entry.is_dir %}<a class="icon-btn" href="/files/{{ entry.id }}/download" title="下载" aria-label="下载">{% include "icons/download.svg" %}</a>{% endif %}
+            <button class="icon-btn" type="button" hx-get="/files/{{ entry.id }}/dialog/rename" hx-target="#modal" hx-swap="innerHTML" title="重命名" aria-label="重命名">{% include "icons/edit.svg" %}</button>
+            <button class="icon-btn" type="button" hx-get="/files/{{ entry.id }}/dialog/move" hx-target="#modal" hx-swap="innerHTML" title="移动" aria-label="移动">{% include "icons/move.svg" %}</button>
+            <button class="icon-btn" type="button" hx-get="/shares/new?file_id={{ entry.id }}" hx-target="#modal" hx-swap="innerHTML" title="分享" aria-label="分享">{% include "icons/share.svg" %}</button>
+            <form method="post" action="/files/delete" class="inline-form" data-confirm="确定将“{{ entry.name }}”{% if entry.is_dir %}及其中的全部内容{% endif %}放入回收站吗？">
+              <input type="hidden" name="csrf" value="{{ page.common.csrf }}">
+              <input type="hidden" name="id" value="{{ entry.id }}">
+              <input type="hidden" name="return_path" value="{{ page.parent_id }}">
+              <button class="icon-btn danger" type="submit" title="删除" aria-label="删除">{% include "icons/trash.svg" %}</button>
+            </form>
+          </div>
         </div>
       </div>
       {% endfor %}
@@ -111,17 +114,20 @@
         </a>
         <span class="cell size-cell">{{ entry.size_text }}</span>
         <span class="cell time-cell">{{ entry.updated_text }}</span>
-        <div class="file-actions">
-          {% if !entry.is_dir %}<a class="icon-btn" href="/files/{{ entry.id }}/download" title="下载" aria-label="下载">{% include "icons/download.svg" %}</a>{% endif %}
-          <button class="icon-btn" type="button" hx-get="/files/{{ entry.id }}/dialog/rename" hx-target="#modal" hx-swap="innerHTML" title="重命名" aria-label="重命名">{% include "icons/edit.svg" %}</button>
-          <button class="icon-btn" type="button" hx-get="/files/{{ entry.id }}/dialog/move" hx-target="#modal" hx-swap="innerHTML" title="移动" aria-label="移动">{% include "icons/move.svg" %}</button>
-          <button class="icon-btn" type="button" hx-get="/shares/new?file_id={{ entry.id }}" hx-target="#modal" hx-swap="innerHTML" title="分享" aria-label="分享">{% include "icons/share.svg" %}</button>
-          <form method="post" action="/files/delete" class="inline-form" data-confirm="确定将“{{ entry.name }}”{% if entry.is_dir %}及其中的全部内容{% endif %}放入回收站吗？">
-            <input type="hidden" name="csrf" value="{{ page.common.csrf }}">
-            <input type="hidden" name="id" value="{{ entry.id }}">
-            <input type="hidden" name="return_path" value="{{ page.parent_id }}">
-            <button class="icon-btn danger" type="submit" title="删除" aria-label="删除">{% include "icons/trash.svg" %}</button>
-          </form>
+        <div class="file-actions" data-actions>
+          <button class="icon-btn row-more" type="button" data-actions-toggle aria-haspopup="true" aria-expanded="false" aria-label="更多操作" title="更多操作">{% include "icons/more.svg" %}</button>
+          <div class="row-more-list" aria-label="文件操作">
+            {% if !entry.is_dir %}<a class="icon-btn" href="/files/{{ entry.id }}/download" title="下载" aria-label="下载">{% include "icons/download.svg" %}</a>{% endif %}
+            <button class="icon-btn" type="button" hx-get="/files/{{ entry.id }}/dialog/rename" hx-target="#modal" hx-swap="innerHTML" title="重命名" aria-label="重命名">{% include "icons/edit.svg" %}</button>
+            <button class="icon-btn" type="button" hx-get="/files/{{ entry.id }}/dialog/move" hx-target="#modal" hx-swap="innerHTML" title="移动" aria-label="移动">{% include "icons/move.svg" %}</button>
+            <button class="icon-btn" type="button" hx-get="/shares/new?file_id={{ entry.id }}" hx-target="#modal" hx-swap="innerHTML" title="分享" aria-label="分享">{% include "icons/share.svg" %}</button>
+            <form method="post" action="/files/delete" class="inline-form" data-confirm="确定将“{{ entry.name }}”{% if entry.is_dir %}及其中的全部内容{% endif %}放入回收站吗？">
+              <input type="hidden" name="csrf" value="{{ page.common.csrf }}">
+              <input type="hidden" name="id" value="{{ entry.id }}">
+              <input type="hidden" name="return_path" value="{{ page.parent_id }}">
+              <button class="icon-btn danger" type="submit" title="删除" aria-label="删除">{% include "icons/trash.svg" %}</button>
+            </form>
+          </div>
         </div>
       </div>
       {% endfor %}
