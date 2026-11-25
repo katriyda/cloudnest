@@ -16,3 +16,13 @@
   - dist/cloudnest-linux-x86_64.tar.gz、dist/cloudnest-linux-aarch64.tar.gz、SHA256SUMS（本地构建，dist 被 gitignore）。
 - 结果: 完成。cargo fmt --check、clippy -D warnings、cargo test（7 单元 + 7 集成）全部通过；Linux 两架构静态 ELF 已产出并校验；安装脚本 bash -n 与 shellcheck 通过。遗留：更新流程需真实 GitHub Release 才能端到端联网验证，TLS 需由反向代理提供。
 - meta: commit=15bce10 files=src/routes/files.rs,src/routes/shares.rs,src/auth.rs,migrations/0001_init.sql,templates/base.html,static/app.css,scripts/install.sh,.github/workflows/release.yml,tests/integration.rs
+
+## 2026-11-25 12:12 — CloudNest 打包交付与文档补充
+- session: s-20251125-pkg
+- agent: dsh (deepseek-v4.1-flash-eco)
+- 目录: C:\Users\katr\fls
+- 目标: 完成 task-1 打包交付（install.sh、systemd、配置示例、CI/release、README、DEPLOY、SECURITY、THIRD_PARTY_NOTICES）
+- 做了什么: 新增一键安装脚本并 shellcheck/bash -n 校验；编写 musl 双架构 GitHub Actions 与 SHA256SUMS；补齐中文 README 与部署/安全文档；按统一命名修正技术标识；补 htmx MIT 声明；重新打包 dist 并核对 ELF 架构与校验和
+- 产出: scripts/install.sh、packaging/cloudnest.service、packaging/config.toml.example、.github/workflows/{ci,release}.yml、README.md、docs/DEPLOY.md、docs/SECURITY.md、THIRD_PARTY_NOTICES.md、dist/cloudnest-linux-{x86_64,aarch64}.tar.gz 及校验文件
+- 结果: 完成；task-1 已为 completed；shellcheck 0.9/0.10、bash -n、YAML 解析、SHA256 与打包内容均通过
+- meta: files=scripts/install.sh,packaging/cloudnest.service,packaging/config.toml.example,.github/workflows/ci.yml,.github/workflows/release.yml,README.md,docs/DEPLOY.md,docs/SECURITY.md,THIRD_PARTY_NOTICES.md
