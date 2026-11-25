@@ -250,7 +250,11 @@ sudo userdel cloudnest
 
 ## 从源码构建
 
-要求 Rust 1.85+（edition 2024）与 SQLite 静态链接能力（sqlx 的 `sqlite` feature 使用 bundled libsqlite3-sys，无需系统 SQLite）。
+要求 Rust 1.94+（edition 2024，sqlx 0.9 的 MSRV）与 SQLite 静态链接能力（sqlx 的 `sqlite` feature 使用 bundled libsqlite3-sys，无需系统 SQLite）。
+
+CI 使用 stable 工具链；`Cargo.toml` 中的 `rust-version` 与依赖实际 MSRV 保持一致，升级依赖后请同步更新。
+
+Windows 上使用 `x86_64-pc-windows-gnu` 目标时，需要把 mingw-w64（或 llvm-mingw）的 `bin` 目录加入 `PATH`，否则 rustc 找不到 `dlltool`/`as`，会链接出启动即崩溃的可执行文件。
 
 ```bash
 cargo build --release

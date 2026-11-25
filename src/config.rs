@@ -62,20 +62,20 @@ impl Config {
     }
 
     pub fn apply_env(&mut self) {
-        if let Ok(v) = std::env::var("CLOUDNEST_LISTEN") {
-            if !v.trim().is_empty() {
-                self.listen = v;
-            }
+        if let Ok(v) = std::env::var("CLOUDNEST_LISTEN")
+            && !v.trim().is_empty()
+        {
+            self.listen = v;
         }
-        if let Ok(v) = std::env::var("CLOUDNEST_DATA_DIR") {
-            if !v.trim().is_empty() {
-                self.data_dir = PathBuf::from(v);
-            }
+        if let Ok(v) = std::env::var("CLOUDNEST_DATA_DIR")
+            && !v.trim().is_empty()
+        {
+            self.data_dir = PathBuf::from(v);
         }
-        if let Ok(v) = std::env::var("CLOUDNEST_PUBLIC_URL") {
-            if !v.trim().is_empty() {
-                self.public_url = Some(v);
-            }
+        if let Ok(v) = std::env::var("CLOUDNEST_PUBLIC_URL")
+            && !v.trim().is_empty()
+        {
+            self.public_url = Some(v);
         }
     }
 

@@ -193,10 +193,10 @@ pub async fn trash_group_keys(
 pub async fn delete_stored_keys(state: &AppState, owner_id: i64, keys: &[String]) {
     for key in keys {
         let path = state.stored_file_path(owner_id, key);
-        if let Err(err) = tokio::fs::remove_file(&path).await {
-            if err.kind() != std::io::ErrorKind::NotFound {
-                tracing::warn!("无法删除存储文件 {}: {err}", path.display());
-            }
+        if let Err(err) = tokio::fs::remove_file(&path).await
+            && err.kind() != std::io::ErrorKind::NotFound
+        {
+            tracing::warn!("无法删除存储文件 {}: {err}", path.display());
         }
     }
 }

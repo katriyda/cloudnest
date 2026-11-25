@@ -159,10 +159,10 @@ pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
     let header = headers.get(header::COOKIE)?.to_str().ok()?;
     for pair in header.split(';') {
         let pair = pair.trim();
-        if let Some((key, value)) = pair.split_once('=') {
-            if key == name {
-                return Some(value.to_string());
-            }
+        if let Some((key, value)) = pair.split_once('=')
+            && key == name
+        {
+            return Some(value.to_string());
         }
     }
     None
