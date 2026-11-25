@@ -80,13 +80,21 @@ impl Config {
 
 {body}"
         );
-        let parent = path.parent().unwrap_or_else(|| Path::new(""));
+        let parent = match path.parent() {
+            Some(parent) if !parent.as_os_str().is_empty() => parent,
+            _ => Path::new("."),
+        };
         if !parent.exists() {
             return Err(ConfigError(format!("配置目录不存在：{}", parent.display())));
         }
         let tmp = path.with_extension(format!("tmp-{}", std::process::id()));
         std::fs::write(&tmp, text)
             .map_err(|e| ConfigError(format!("无法写入临时配置文件 {}: {e}", tmp.display())))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o640));
+        }
         match std::fs::rename(&tmp, path) {
             Ok(()) => Ok(()),
             Err(first_err) => {
@@ -111,7 +119,11 @@ impl Config {
         if self.listen.is_empty() {
             return Err(ConfigError("监听地址不能为空".to_string()));
         }
-        if self.listen.parse::<std::net::SocketAddr>().is_err() {
+        let listen_ok = self
+            .listen
+            .rsplit_once(':')
+            .is_some_and(|(host, port)| !host.is_empty() && port.parse::<u16>().is_ok());
+        if !listen_ok {
             return Err(ConfigError(
                 "监听地址格式不正确，应形如 127.0.0.1:8080".to_string(),
             ));
