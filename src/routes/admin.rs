@@ -237,7 +237,7 @@ pub async fn set_quota(
 ) -> Result<Response, AppError> {
     auth::require_csrf(&admin.0, &form.csrf)?;
     if !(0..=1_048_576).contains(&form.quota_gb) {
-        return Err(AppError::BadRequest("存储配额无效".to_string()));
+        return Err(AppError::BadRequest("存储空间设置无效".to_string()));
     }
     let (username, _role, _disabled) = target_user(&state, form.id).await?;
     let quota_bytes = form.quota_gb.saturating_mul(util::GIB);
@@ -247,9 +247,9 @@ pub async fn set_quota(
         .execute(&state.pool)
         .await?;
     let message = if quota_bytes == 0 {
-        format!("{username} 的存储配额已设为不限制")
+        format!("{username} 的存储空间已设为不限制")
     } else {
-        format!("{username} 的存储配额已设为 {} GB", form.quota_gb)
+        format!("{username} 的存储空间已设为 {} GB", form.quota_gb)
     };
     Ok(super::redirect_msg("/admin", "ok", &message).into_response())
 }

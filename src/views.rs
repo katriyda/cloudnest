@@ -115,6 +115,7 @@ pub struct FileItem {
     pub updated_text: String,
     pub preview: String,
     pub ext_label: String,
+    pub type_text: &'static str,
     pub hue: u32,
     pub mime: String,
 }
@@ -138,19 +139,21 @@ impl FileItem {
         } else {
             util::extension_label(&name)
         };
+        let type_text = util::friendly_type(&name, mime.as_deref());
         let hue = util::hue_for(&name);
         Self {
             id,
             name,
             is_dir,
             size_text: if is_dir {
-                "文件夹".to_string()
+                "—".to_string()
             } else {
                 util::human_size(size)
             },
             updated_text: util::format_ts(updated_at),
             preview,
             ext_label,
+            type_text,
             hue,
             mime: mime.unwrap_or_default(),
         }

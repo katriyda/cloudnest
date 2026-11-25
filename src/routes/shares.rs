@@ -271,7 +271,7 @@ pub async fn create(
     let expires_at = match form.expires_at.as_deref() {
         Some(value) if !value.trim().is_empty() => {
             let ts = util::parse_local_datetime(value)
-                .ok_or_else(|| AppError::BadRequest("有效期格式无效".to_string()))?;
+                .ok_or_else(|| AppError::BadRequest("有效期格式不正确".to_string()))?;
             if ts <= util::now_ts() {
                 return Err(AppError::BadRequest("有效期必须晚于当前时间".to_string()));
             }

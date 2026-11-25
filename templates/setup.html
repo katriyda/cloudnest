@@ -13,43 +13,55 @@
 </head>
 <body class="auth-body">
 <div class="auth-shell">
-  <div class="auth-brand">
-    <a href="/" class="brand-link">
-      <span class="brand-mark">{% include "icons/cloud.svg" %}</span>
-      <span class="brand-text">Cloud<span>Nest</span></span>
-    </a>
-    <button class="icon-btn theme-toggle" type="button" data-theme-toggle aria-label="切换主题">
-      <span class="theme-icon-light">{% include "icons/sun.svg" %}</span>
-      <span class="theme-icon-dark">{% include "icons/moon.svg" %}</span>
-    </button>
-  </div>
-  <div class="auth-card">
-    <div class="auth-heading">
-      <span class="eyebrow">首次启动</span>
-      <h1>创建管理员账户</h1>
-      <p>这是唯一一次初始化。管理员可以创建用户、分配存储空间。</p>
+  <section class="auth-facts">
+    <div class="auth-brand">
+      <a href="/" class="brand-link">
+        <span class="brand-mark">{% include "icons/cloud.svg" %}</span>
+        <span class="brand-text">CloudNest</span>
+      </a>
+      <button class="icon-btn theme-toggle" type="button" data-theme-toggle aria-label="切换主题">
+        <span class="theme-icon-light">{% include "icons/sun.svg" %}</span>
+        <span class="theme-icon-dark">{% include "icons/moon.svg" %}</span>
+      </button>
     </div>
-    {% if let Some(error) = page.error %}
-    <div class="flash flash-err" role="alert"><span class="flash-dot"></span><span>{{ error }}</span></div>
-    {% endif %}
-    <form method="post" action="/setup" class="stack-form">
-      <label class="field">
-        <span class="field-label">管理员用户名</span>
-        <input type="text" name="username" required minlength="3" maxlength="32" autofocus autocomplete="username" spellcheck="false">
-      </label>
-      <label class="field">
-        <span class="field-label">密码</span>
-        <input type="password" name="password" required minlength="8" maxlength="128" autocomplete="new-password">
-        <span class="field-hint">至少 8 个字符，建议使用长密码。</span>
-      </label>
-      <label class="field">
-        <span class="field-label">确认密码</span>
-        <input type="password" name="password_confirm" required minlength="8" maxlength="128" autocomplete="new-password">
-      </label>
-      <button class="btn btn-primary btn-block" type="submit">创建并进入</button>
-    </form>
-  </div>
-  <p class="auth-copyright">CloudNest · 简单可靠的个人网盘</p>
+    <div class="auth-facts-body">
+      <h1>开始使用 CloudNest</h1>
+      <p class="auth-lede">这一步只执行一次。创建管理员账户后，就可以添加其他成员并开始使用。</p>
+      <ul class="fact-list">
+        <li><span class="fact-num">01</span><span>管理员可以创建账户、重置密码、停用账户。</span></li>
+        <li><span class="fact-num">02</span><span>每个账户有单独的存储空间。</span></li>
+        <li><span class="fact-num">03</span><span>初始设置完成后即可上传和分享文件。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="auth-pane">
+    <div class="auth-card">
+      <div class="auth-head">
+        <h2>创建管理员</h2>
+        <p>用户名与密码用于首次登录</p>
+      </div>
+      {% if let Some(error) = page.error %}
+      <div class="flash flash-err" role="alert"><span class="flash-mark"></span><span>{{ error }}</span></div>
+      {% endif %}
+      <form method="post" action="/setup" class="stack-form">
+        <label class="field">
+          <span class="field-label">管理员用户名</span>
+          <input type="text" name="username" required minlength="3" maxlength="32" autofocus autocomplete="username" spellcheck="false">
+        </label>
+        <label class="field">
+          <span class="field-label">密码</span>
+          <input type="password" name="password" required minlength="8" maxlength="128" autocomplete="new-password">
+          <span class="field-hint">至少 8 个字符</span>
+        </label>
+        <label class="field">
+          <span class="field-label">确认密码</span>
+          <input type="password" name="password_confirm" required minlength="8" maxlength="128" autocomplete="new-password">
+        </label>
+        <button class="btn btn-primary btn-block" type="submit">创建并进入</button>
+      </form>
+    </div>
+  </section>
 </div>
 </body>
 </html>

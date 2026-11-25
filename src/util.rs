@@ -77,7 +77,7 @@ pub fn sanitize_filename(raw: &str) -> Result<String, AppError> {
         return Err(AppError::BadRequest("文件名不能为空".to_string()));
     }
     if base == "." || base == ".." {
-        return Err(AppError::BadRequest("文件名不合法".to_string()));
+        return Err(AppError::BadRequest("文件名包含不可用的字符".to_string()));
     }
     let mut out = String::with_capacity(base.len());
     for ch in base.chars() {
@@ -108,10 +108,10 @@ pub fn sanitize_relative_components(raw: &str) -> Result<Vec<String>, AppError> 
             continue;
         }
         if part == ".." {
-            return Err(AppError::BadRequest("路径不合法".to_string()));
+            return Err(AppError::BadRequest("文件位置不正确".to_string()));
         }
         if parts.len() >= 32 {
-            return Err(AppError::BadRequest("文件夹层级过深".to_string()));
+            return Err(AppError::BadRequest("文件夹层级太多".to_string()));
         }
         parts.push(sanitize_filename(part)?);
     }
@@ -202,14 +202,42 @@ pub fn guess_mime(name: &str) -> String {
         .to_string()
 }
 
+pub fn friendly_type(name: &str, mime: Option<&str>) -> &'static str {
+    let kind = preview_kind(name, mime);
+    match kind {
+        "image" => "图片",
+        "video" => "视频",
+        "audio" => "音频",
+        "pdf" => "PDF 文档",
+        "text" => "文本",
+        _ => {
+            let ext = PathBuf::from(name)
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            match ext.as_str() {
+                "doc" | "docx" | "odt" | "rtf" => "文档",
+                "xls" | "xlsx" | "ods" => "表格",
+                "ppt" | "pptx" | "odp" => "演示文稿",
+                "zip" | "rar" | "7z" | "tar" | "gz" | "bz2" | "xz" => "压缩包",
+                "apk" => "安装包",
+                "exe" | "msi" | "dmg" | "deb" | "rpm" => "安装程序",
+                "iso" | "img" => "镜像文件",
+                _ => "文件",
+            }
+        }
+    }
+}
+
 pub fn extension_label(name: &str) -> String {
     let ext = PathBuf::from(name)
         .extension()
         .and_then(|e| e.to_str())
         .unwrap_or("")
         .to_ascii_uppercase();
-    if ext.is_empty() | (ext.len() > 3) {
-        "FILE".to_string()
+    if ext.is_empty() | (ext.len() > 4) {
+        "文件".into()
     } else {
         ext
     }

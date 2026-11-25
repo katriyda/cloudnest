@@ -1,55 +1,56 @@
 {% extends "base.html" %}
 {% block title %}回收站 · CloudNest{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="page-strip">
   <div class="page-title-wrap">
-    <span class="eyebrow">回收站</span>
     <h1>回收站</h1>
-    <p class="page-sub">这里的文件仍占用存储空间。恢复或永久删除后可释放空间。</p>
+    <p class="page-note">{{ page.entries.len() }} 项 · 仍占用存储空间，恢复或永久删除后释放</p>
   </div>
   {% if !page.entries.is_empty() %}
   <form method="post" action="/trash/empty" data-confirm="确定清空回收站吗？此操作无法撤销。">
     <input type="hidden" name="csrf" value="{{ page.common.csrf }}">
-    <button class="btn btn-danger-soft" type="submit">清空回收站</button>
+    <button class="btn btn-danger btn-small" type="submit">清空回收站</button>
   </form>
   {% endif %}
 </div>
 
-<div class="files-pane">
-  <div class="crumbs"><span class="crumb is-current">全部已删除项目</span></div>
-  {% if page.entries.is_empty() %}
-  <div class="empty-state">
-    <span class="empty-icon">{% include "icons/trash.svg" %}</span>
-    <h2>回收站是空的</h2>
-    <p>删除的文件会先出现在这里，方便你随时恢复。</p>
-    <a class="btn btn-soft" href="/files">返回我的文件</a>
-  </div>
-  {% else %}
-  <div class="file-list">
-    <div class="file-list-head trash-head"><span>名称</span><span>大小</span><span>删除时间</span><span class="actions-head">操作</span></div>
-    {% for entry in page.entries %}
-    <div class="file-row">
-      <div class="file-link">
-        <span class="file-icon{% if entry.is_dir %} is-dir{% endif %}" style="--hue: {{ entry.hue }}">{% if entry.is_dir %}{% include "icons/folder.svg" %}{% else %}<span class="ext">{{ entry.ext_label }}</span>{% endif %}</span>
-        <span class="file-name"><span class="name-text">{{ entry.name }}</span><span class="name-sub">{% if entry.is_dir %}文件夹{% else %}文件{% endif %}</span></span>
-      </div>
-      <span class="cell size-cell">{{ entry.size_text }}</span>
-      <span class="cell time-cell">{{ entry.deleted_text }}</span>
-      <div class="file-actions">
-        <form method="post" action="/trash/restore" class="inline-form">
-          <input type="hidden" name="csrf" value="{{ page.common.csrf }}">
-          <input type="hidden" name="id" value="{{ entry.id }}">
-          <button class="btn btn-small btn-soft" type="submit">恢复</button>
-        </form>
-        <form method="post" action="/trash/delete" class="inline-form" data-confirm="确定永久删除“{{ entry.name }}”吗？此操作无法撤销。">
-          <input type="hidden" name="csrf" value="{{ page.common.csrf }}">
-          <input type="hidden" name="id" value="{{ entry.id }}">
-          <button class="btn btn-small btn-danger-soft" type="submit">永久删除</button>
-        </form>
-      </div>
-    </div>
-    {% endfor %}
-  </div>
-  {% endif %}
+{% if page.entries.is_empty() %}
+<div class="empty-state">
+  <span class="empty-mark">0 项</span>
+  <h2>回收站是空的</h2>
+  <p>删除的文件会先出现在这里，可以恢复，也可以在确认后永久删除。</p>
+  <a class="btn btn-quiet btn-small" href="/files">返回我的文件</a>
 </div>
+{% else %}
+<div class="file-table">
+  <div class="table-head" aria-hidden="true">
+    <span>名称</span><span class="col-size">大小</span><span class="col-time">删除时间</span><span class="col-actions">操作</span>
+  </div>
+  {% for entry in page.entries %}
+  <div class="file-row{% if entry.is_dir %} is-dir{% endif %}">
+    <div class="file-link">
+      <span class="file-icon{% if entry.is_dir %} is-dir{% endif %}">{% if entry.is_dir %}{% include "icons/folder.svg" %}{% else %}<span class="ext">{{ entry.ext_label }}</span>{% endif %}</span>
+      <span class="file-name">
+        <span class="name-text">{{ entry.name }}</span>
+        <span class="name-sub">{% if entry.is_dir %}文件夹{% else %}文件{% endif %}</span>
+      </span>
+    </div>
+    <span class="cell size-cell">{{ entry.size_text }}</span>
+    <span class="cell time-cell">{{ entry.deleted_text }}</span>
+    <div class="file-actions">
+      <form method="post" action="/trash/restore" class="inline-form">
+        <input type="hidden" name="csrf" value="{{ page.common.csrf }}">
+        <input type="hidden" name="id" value="{{ entry.id }}">
+        <button class="btn btn-small btn-quiet" type="submit">恢复</button>
+      </form>
+      <form method="post" action="/trash/delete" class="inline-form" data-confirm="确定永久删除“{{ entry.name }}”吗？此操作无法撤销。">
+        <input type="hidden" name="csrf" value="{{ page.common.csrf }}">
+        <input type="hidden" name="id" value="{{ entry.id }}">
+        <button class="btn btn-small btn-danger" type="submit">永久删除</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
 {% endblock %}

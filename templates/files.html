@@ -2,88 +2,69 @@
 {% block title %}我的文件 · CloudNest{% endblock %}
 {% block content %}
 <div id="page-data" data-page="files" data-parent-id="{{ page.parent_id }}" data-csrf="{{ page.common.csrf }}" data-upload-url="/files/upload"></div>
-<div class="page-head">
-  <div class="page-title-wrap">
-    <span class="eyebrow">工作区</span>
-    <h1>我的文件</h1>
-    <p class="page-sub">已使用 {{ page.common.used_text }}{% if !page.common.quota_unlimited %} · 共 {{ page.common.quota_text }}{% endif %} · {{ page.common.file_count }} 个文件</p>
-  </div>
-  <div class="head-actions">
-    <form method="post" action="/files/upload" enctype="multipart/form-data" class="inline-form" id="upload-form">
-      <input type="hidden" name="csrf" value="{{ page.common.csrf }}">
-      <input type="hidden" name="parent_id" value="{{ page.parent_id }}">
-      <input type="hidden" name="path" value="">
-      <label class="btn btn-primary">
-        <span class="btn-icon">{% include "icons/upload.svg" %}</span>上传文件
-        <input type="file" name="files" multiple class="visually-hidden" data-file-input>
-      </label>
-      <button class="btn btn-ghost btn-icon-only" type="button" data-pick-folder title="上传文件夹" aria-label="上传文件夹">{% include "icons/folder-plus.svg" %}</button>
-      <input type="file" data-folder-input webkitdirectory directory multiple class="visually-hidden">
-      <noscript><button class="btn" type="submit">开始上传</button></noscript>
-    </form>
-    <button class="btn btn-soft" type="button"
-      hx-get="{{ page.folder_dialog_url }}" hx-target="#modal" hx-swap="innerHTML">
-      <span class="btn-icon">{% include "icons/plus.svg" %}</span>新建文件夹
-    </button>
-  </div>
-</div>
-
-<div id="files-pane" class="files-pane dropzone">
-  <div class="crumbs">
-    <a href="/files" class="crumb{% if page.parent_id == 0 && !page.is_search %} is-current{% endif %}">全部文件</a>
-    {% if !page.is_search %}
-      {% for crumb in page.crumbs %}
-        <span class="crumb-sep">{% include "icons/chevron.svg" %}</span>
-        <a class="crumb{% if loop.last %} is-current{% endif %}" href="/files?path={{ crumb.id }}">{{ crumb.name }}</a>
-      {% endfor %}
-    {% else %}
-      <span class="crumb-sep">{% include "icons/chevron.svg" %}</span>
-      <span class="crumb is-current">搜索结果</span>
-    {% endif %}
-  </div>
-
-  <div class="list-toolbar">
-    <form class="pane-search" action="/files" method="get" role="search">
-      <span class="search-icon">{% include "icons/search.svg" %}</span>
-      <input type="search" name="q" value="{{ page.query }}" placeholder="在当前盘内搜索…" autocomplete="off"
-        hx-get="/files" hx-include="closest form" hx-target="#files-pane" hx-select="#files-pane" hx-swap="outerHTML" hx-push-url="true"
-        hx-trigger="input changed delay:400ms, search">
-      <input type="hidden" name="path" value="{{ page.parent_id }}">
-      <input type="hidden" name="sort" value="{{ page.sort }}">
-      <input type="hidden" name="dir" value="{{ page.dir }}">
-      <input type="hidden" name="view" value="{{ page.view }}">
-    </form>
-    <div class="toolbar-right">
+<section id="files-pane" class="workspace dropzone">
+  <div class="workspace-bar">
+    <nav class="crumbs" aria-label="当前位置">
+      <a href="/files" class="crumb{% if page.parent_id == 0 && !page.is_search %} is-current{% endif %}">全部文件</a>
+      {% if !page.is_search %}
+        {% for crumb in page.crumbs %}
+          <span class="crumb-sep" aria-hidden="true">/</span>
+          <a class="crumb{% if loop.last %} is-current{% endif %}" href="/files?path={{ crumb.id }}">{{ crumb.name }}</a>
+        {% endfor %}
+      {% else %}
+        <span class="crumb-sep" aria-hidden="true">/</span>
+        <span class="crumb is-current">搜索结果</span>
+      {% endif %}
+    </nav>
+    <div class="workspace-tools">
       <div class="sort-links">
         <span class="sort-label">排序</span>
-        <a class="chip{% if page.sort == "name" %} is-active{% endif %}" href="{{ page.sort_name_href }}"
+        <a class="sort-link{% if page.sort == "name" %} is-active{% endif %}" href="{{ page.sort_name_href }}"
           hx-get="{{ page.sort_name_href }}" hx-target="#files-pane" hx-select="#files-pane" hx-swap="outerHTML" hx-push-url="true">名称{% if page.sort == "name" %} {{ page.dir_label }}{% endif %}</a>
-        <a class="chip{% if page.sort == "size" %} is-active{% endif %}" href="{{ page.sort_size_href }}"
+        <a class="sort-link{% if page.sort == "size" %} is-active{% endif %}" href="{{ page.sort_size_href }}"
           hx-get="{{ page.sort_size_href }}" hx-target="#files-pane" hx-select="#files-pane" hx-swap="outerHTML" hx-push-url="true">大小{% if page.sort == "size" %} {{ page.dir_label }}{% endif %}</a>
-        <a class="chip{% if page.sort == "modified" %} is-active{% endif %}" href="{{ page.sort_modified_href }}"
+        <a class="sort-link{% if page.sort == "modified" %} is-active{% endif %}" href="{{ page.sort_modified_href }}"
           hx-get="{{ page.sort_modified_href }}" hx-target="#files-pane" hx-select="#files-pane" hx-swap="outerHTML" hx-push-url="true">修改时间{% if page.sort == "modified" %} {{ page.dir_label }}{% endif %}</a>
       </div>
-      <div class="view-toggle">
+      <div class="view-toggle" aria-label="视图切换">
         <a class="icon-btn{% if page.view == "list" %} is-active{% endif %}" href="{{ page.view_list_href }}" title="列表视图" aria-label="列表视图"
           hx-get="{{ page.view_list_href }}" hx-target="#files-pane" hx-select="#files-pane" hx-swap="outerHTML" hx-push-url="true">{% include "icons/list.svg" %}</a>
         <a class="icon-btn{% if page.view == "grid" %} is-active{% endif %}" href="{{ page.view_grid_href }}" title="网格视图" aria-label="网格视图"
           hx-get="{{ page.view_grid_href }}" hx-target="#files-pane" hx-select="#files-pane" hx-swap="outerHTML" hx-push-url="true">{% include "icons/grid.svg" %}</a>
       </div>
+      <button class="btn btn-quiet btn-small" type="button"
+        hx-get="{{ page.folder_dialog_url }}" hx-target="#modal" hx-swap="innerHTML">
+        <span class="btn-icon">{% include "icons/plus.svg" %}</span>新建文件夹
+      </button>
+      <form method="post" action="/files/upload" enctype="multipart/form-data" class="inline-form" id="upload-form">
+        <input type="hidden" name="csrf" value="{{ page.common.csrf }}">
+        <input type="hidden" name="parent_id" value="{{ page.parent_id }}">
+        <input type="hidden" name="path" value="">
+        <label class="btn btn-primary btn-small">
+          <span class="btn-icon">{% include "icons/upload.svg" %}</span>上传文件
+          <input type="file" name="files" multiple class="visually-hidden" data-file-input>
+        </label>
+        <button class="btn btn-quiet btn-small btn-icon-only" type="button" data-pick-folder title="上传文件夹" aria-label="上传文件夹">{% include "icons/folder-plus.svg" %}</button>
+        <input type="file" data-folder-input webkitdirectory directory multiple class="visually-hidden">
+        <noscript><button class="btn btn-small" type="submit">开始上传</button></noscript>
+      </form>
     </div>
   </div>
 
-  {% if page.is_search %}
-  <div class="search-note">
-    <span>“{{ page.query }}” 的搜索结果 · {{ page.entries.len() }} 项</span>
-    <a class="text-link" href="/files?path={{ page.parent_id }}&view={{ page.view }}">清除搜索</a>
+  <div class="workspace-line">
+    <span class="meta-text">
+      {% if page.is_search %}“{{ page.query }}” 的搜索结果 · {% endif %}{{ page.entries.len() }} 项
+    </span>
+    <span class="meta-text">已用 {{ page.common.used_text }}{% if !page.common.quota_unlimited %} / {{ page.common.quota_text }}{% endif %}</span>
+    {% if page.is_search %}<a class="text-link" href="/files?path={{ page.parent_id }}&view={{ page.view }}">清除搜索</a>{% endif %}
   </div>
-  {% endif %}
 
   {% if page.entries.is_empty() %}
   <div class="empty-state">
-    <span class="empty-icon">{% include "icons/cloud.svg" %}</span>
+    <span class="empty-mark">{% if page.is_search %}0 项匹配{% else %}空文件夹{% endif %}</span>
     <h2>{% if page.is_search %}没有找到匹配的文件{% else %}这里还没有文件{% endif %}</h2>
-    <p>{% if page.is_search %}试试其他关键词，或清除搜索条件。{% else %}拖拽文件到这里，或使用右上角的上传按钮。{% endif %}</p>
+    <p>{% if page.is_search %}换一个关键词，或清除搜索条件后重新浏览。{% else %}把文件拖到这里，或用右上角的上传按钮添加。{% endif %}</p>
+    {% if page.is_search %}<a class="btn btn-quiet btn-small" href="/files?path={{ page.parent_id }}">清除搜索</a>{% endif %}
   </div>
   {% else %}
     {% if page.view == "grid" %}
@@ -91,7 +72,7 @@
       {% for entry in page.entries %}
       <div class="file-card">
         <a class="file-card-main" href="{% if entry.is_dir %}/files?path={{ entry.id }}{% else %}/files/{{ entry.id }}/preview{% endif %}">
-          <span class="file-icon{% if entry.is_dir %} is-dir{% endif %}" style="--hue: {{ entry.hue }}">{% if entry.is_dir %}{% include "icons/folder.svg" %}{% else %}<span class="ext">{{ entry.ext_label }}</span>{% endif %}</span>
+          <span class="file-icon{% if entry.is_dir %} is-dir{% endif %}">{% if entry.is_dir %}{% include "icons/folder.svg" %}{% else %}<span class="ext">{{ entry.ext_label }}</span>{% endif %}</span>
           <span class="file-card-name" title="{{ entry.name }}">{{ entry.name }}</span>
           <span class="file-card-meta">{{ entry.size_text }} · {{ entry.updated_text }}</span>
         </a>
@@ -111,17 +92,17 @@
       {% endfor %}
     </div>
     {% else %}
-    <div class="file-list">
-      <div class="file-list-head">
-        <span>名称</span><span>大小</span><span>修改时间</span><span class="actions-head">操作</span>
+    <div class="file-table">
+      <div class="table-head" aria-hidden="true">
+        <span>名称</span><span class="col-size">大小</span><span class="col-time">修改时间</span><span class="col-actions">操作</span>
       </div>
       {% for entry in page.entries %}
-      <div class="file-row">
+      <div class="file-row{% if entry.is_dir %} is-dir{% endif %}">
         <a class="file-link" href="{% if entry.is_dir %}/files?path={{ entry.id }}{% else %}/files/{{ entry.id }}/preview{% endif %}" title="{{ entry.name }}">
-          <span class="file-icon{% if entry.is_dir %} is-dir{% endif %}" style="--hue: {{ entry.hue }}">{% if entry.is_dir %}{% include "icons/folder.svg" %}{% else %}<span class="ext">{{ entry.ext_label }}</span>{% endif %}</span>
+          <span class="file-icon{% if entry.is_dir %} is-dir{% endif %}">{% if entry.is_dir %}{% include "icons/folder.svg" %}{% else %}<span class="ext">{{ entry.ext_label }}</span>{% endif %}</span>
           <span class="file-name">
             <span class="name-text">{{ entry.name }}</span>
-            <span class="name-sub">{% if entry.is_dir %}文件夹{% else %}{{ entry.mime }}{% endif %}</span>
+            <span class="name-sub">{% if entry.is_dir %}文件夹{% else %}{{ entry.type_text }}{% endif %}</span>
           </span>
         </a>
         <span class="cell size-cell">{{ entry.size_text }}</span>
@@ -143,16 +124,16 @@
     </div>
     {% endif %}
   {% endif %}
-  <div class="drop-hint" data-drop-hint>松开鼠标以上传到当前文件夹</div>
-</div>
+  <div class="drop-hint" data-drop-hint>松开鼠标，文件将上传到当前文件夹</div>
+</section>
 
 <div id="upload-panel" class="upload-panel" hidden>
   <div class="upload-head">
-    <span class="upload-title">正在上传 <span id="upload-count"></span></span>
+    <span>上传 <span id="upload-count"></span></span>
     <button type="button" class="icon-btn" data-dismiss aria-label="收起">&times;</button>
   </div>
   <div class="upload-file-name" id="upload-file-name"></div>
   <div class="meter"><div class="meter-fill" id="upload-meter" style="width: 0%"></div></div>
-  <div class="upload-foot"><span id="upload-status">准备中…</span><span id="upload-percent">0%</span></div>
+  <div class="upload-foot"><span id="upload-status">准备中</span><span id="upload-percent">0%</span></div>
 </div>
 {% endblock %}

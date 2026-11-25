@@ -949,7 +949,7 @@ pub async fn upload(
                 if size > max_total || total > max_total {
                     output.shutdown().await.ok();
                     return Err(AppError::BadRequest(format!(
-                        "上传内容超过单次请求上限 {}",
+                        "文件太大，单次最多上传 {}",
                         util::human_size(max_total)
                     )));
                 }
@@ -1037,7 +1037,7 @@ async fn load_upload(state: &AppState, token: &str) -> Result<UploadRow, AppErro
     .bind(token)
     .fetch_optional(&state.pool)
     .await?
-    .ok_or_else(|| AppError::NotFound("上传会话不存在或已过期".to_string()))
+    .ok_or_else(|| AppError::NotFound("上传已中断，请重新上传".to_string()))
 }
 
 pub async fn upload_init(
@@ -1047,7 +1047,7 @@ pub async fn upload_init(
 ) -> Result<Response, AppError> {
     auth::require_csrf(&user.0, &form.csrf)?;
     if form.size < 0 {
-        return Err(AppError::BadRequest("文件大小无效".to_string()));
+        return Err(AppError::BadRequest("文件大小不正确".to_string()));
     }
     let parent_id = form.parent_id.unwrap_or(0).max(0);
     let parent = resolve_folder(&state, user.0.id, parent_id)
@@ -1093,10 +1093,10 @@ pub async fn upload_status(
 ) -> Result<Response, AppError> {
     let upload = load_upload(&state, &token).await?;
     if upload.user_id != user.0.id {
-        return Err(AppError::NotFound("上传会话不存在".to_string()));
+        return Err(AppError::NotFound("上传已中断，请重新上传".to_string()));
     }
     if !std::path::Path::new(&upload.temp_path).exists() {
-        return Err(AppError::NotFound("上传临时文件已丢失".to_string()));
+        return Err(AppError::NotFound("上传已中断，请重新上传".to_string()));
     }
     Ok(axum::Json(serde_json::json!({
         "token": token,
@@ -1120,24 +1120,23 @@ pub async fn upload_chunk(
     auth::require_csrf(&user.0, csrf)?;
     let upload = load_upload(&state, &token).await?;
     if upload.user_id != user.0.id {
-        return Err(AppError::NotFound("上传会话不存在".to_string()));
+        return Err(AppError::NotFound("上传已中断，请重新上传".to_string()));
     }
     let offset: i64 = headers
         .get("x-offset")
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.parse().ok())
-        .ok_or_else(|| AppError::BadRequest("缺少上传偏移".to_string()))?;
+        .ok_or_else(|| AppError::BadRequest("上传进度异常，请重新上传".to_string()))?;
     if offset != upload.received {
-        return Err(AppError::BadRequest(format!(
-            "上传偏移不匹配：服务器已接收 {} 字节",
-            upload.received
-        )));
+        return Err(AppError::BadRequest("上传没有对上进度，请重新上传".into()));
     }
     if body.len() > 16 * 1024 * 1024 {
-        return Err(AppError::BadRequest("分块过大".to_string()));
+        return Err(AppError::BadRequest("上传数据过大".to_string()));
     }
     if upload.received.saturating_add(body.len() as i64) > upload.total_size {
-        return Err(AppError::BadRequest("上传数据超过文件大小".to_string()));
+        return Err(AppError::BadRequest(
+            "上传数据超过文件大小，请重新上传".to_string(),
+        ));
     }
     let mut file = tokio::fs::OpenOptions::new()
         .append(true)
@@ -1153,7 +1152,9 @@ pub async fn upload_chunk(
         .execute(&state.pool)
         .await?;
     if updated.rows_affected() == 0 {
-        return Err(AppError::BadRequest("并发上传冲突，请重试".to_string()));
+        return Err(AppError::BadRequest(
+            "多个上传同时进行，请稍后重试".to_string(),
+        ));
     }
     Ok(axum::Json(serde_json::json!({
         "received": new_received,
@@ -1175,11 +1176,11 @@ pub async fn upload_complete(
     auth::require_csrf(&user.0, csrf)?;
     let upload = load_upload(&state, &token).await?;
     if upload.user_id != user.0.id {
-        return Err(AppError::NotFound("上传会话不存在".to_string()));
+        return Err(AppError::NotFound("上传已中断，请重新上传".to_string()));
     }
     if upload.received != upload.total_size {
         return Err(AppError::BadRequest(format!(
-            "上传尚未完成：已接收 {} / {} 字节",
+            "上传还未完成：{} / {}",
             upload.received, upload.total_size
         )));
     }

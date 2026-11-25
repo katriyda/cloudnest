@@ -1,35 +1,36 @@
 {% extends "base.html" %}
 {% block title %}账户设置 · CloudNest{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="page-strip">
   <div class="page-title-wrap">
-    <span class="eyebrow">账户</span>
     <h1>账户设置</h1>
-    <p class="page-sub">管理你的登录密码和存储空间。</p>
+    <p class="page-note">{{ page.common.username }} · 创建于 {{ page.created_text }}</p>
   </div>
 </div>
 
 <div class="account-grid">
   <section class="panel">
-    <div class="panel-head"><h2>账户信息</h2></div>
+    <div class="panel-head"><h2>账户</h2><span class="panel-note">{% if page.common.is_admin %}管理员{% else %}普通用户{% endif %}</span></div>
     <div class="profile-block">
       <span class="avatar avatar-large">{{ page.common.initial }}</span>
       <div>
         <h3>{{ page.common.username }}</h3>
-        <p class="muted">{% if page.common.is_admin %}管理员账户{% else %}普通用户{% endif %} · 创建于 {{ page.created_text }}</p>
+        <p>{{ page.user_file_count }} 个文件 · 已用 {{ page.common.used_text }}</p>
       </div>
     </div>
     <div class="detail-list">
-      <div class="detail-row"><span>已用空间</span><strong>{{ page.common.used_text }}</strong></div>
       <div class="detail-row"><span>存储上限</span><strong>{% if page.common.quota_unlimited %}不限制{% else %}{{ page.common.quota_text }}{% endif %}</strong></div>
-      <div class="detail-row"><span>文件数量</span><strong>{{ page.user_file_count }}</strong></div>
+      <div class="detail-row"><span>已用空间</span><strong>{{ page.common.used_text }}{% if !page.common.quota_unlimited %}（{{ page.common.used_percent }}%）{% endif %}</strong></div>
+      <div class="detail-row"><span>创建时间</span><strong>{{ page.created_text }}</strong></div>
     </div>
-    <div class="meter"><div class="meter-fill" style="width: {{ page.common.used_percent }}%"></div></div>
-    <p class="field-hint">{% if page.common.quota_unlimited %}管理员未对你的账户设置存储上限。{% else %}已达到 {{ page.common.used_percent }}% 的配额。{% endif %}</p>
+    {% if !page.common.quota_unlimited %}
+    <div class="meter meter-small"><div class="meter-fill" style="width: {{ page.common.used_percent }}%"></div></div>
+    <p class="field-hint">可用空间由管理员分配。</p>
+    {% endif %}
   </section>
 
   <section class="panel">
-    <div class="panel-head"><h2>修改密码</h2></div>
+    <div class="panel-head"><h2>修改密码</h2><span class="panel-note">其他设备需要重新登录</span></div>
     <form method="post" action="/account/password" class="stack-form">
       <input type="hidden" name="csrf" value="{{ page.common.csrf }}">
       <label class="field">
@@ -39,7 +40,7 @@
       <label class="field">
         <span class="field-label">新密码</span>
         <input type="password" name="new_password" required minlength="8" maxlength="128" autocomplete="new-password">
-        <span class="field-hint">至少 8 个字符。修改后其他设备的登录会话将失效。</span>
+        <span class="field-hint">至少 8 个字符。修改后其他设备需要重新登录。</span>
       </label>
       <label class="field">
         <span class="field-label">确认新密码</span>

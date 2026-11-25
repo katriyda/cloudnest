@@ -1,9 +1,11 @@
 <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
   <div class="modal-head">
-    <div><span class="eyebrow">当前目录</span><h2 id="dialog-title">新建文件夹</h2></div>
+    <div>
+      <h2 id="dialog-title">新建文件夹</h2>
+      <p>位置：{{ page.current_crumb }}</p>
+    </div>
     <button type="button" class="icon-btn" data-modal-close aria-label="关闭">{% include "icons/close.svg" %}</button>
   </div>
-  <p class="modal-note">{{ page.current_crumb }}</p>
   <form method="post" action="{{ page.action }}" class="stack-form">
     <input type="hidden" name="csrf" value="{{ page.csrf }}">
     <input type="hidden" name="parent_id" value="{{ page.parent_id }}">

@@ -26,14 +26,14 @@ CloudNest 是一个轻量、可靠的个人云盘：单个静态二进制 + SQLi
 ### 文件管理
 ![文件列表](docs/screenshots/files-light.png)
 
-### 分享管理
-![分享管理](docs/screenshots/shares-light.png)
+### 分享链接
+![分享链接](docs/screenshots/shares-light.png)
 
 ### 访客分享页
 ![访客分享页](docs/screenshots/share-public.png)
 
-### 管理后台
-![管理后台](docs/screenshots/admin-light.png)
+### 用户与配额
+![用户与配额](docs/screenshots/admin-light.png)
 
 ### 登录页
 ![登录页](docs/screenshots/login.png)
@@ -315,5 +315,5 @@ THIRD_PARTY_NOTICES.md         第三方软件许可声明
 
 - [docs/DEPLOY.md](docs/DEPLOY.md)：部署、升级、备份恢复、故障排查
 - [docs/SECURITY.md](docs/SECURITY.md)：安全设计、加固清单与漏洞报告
-- [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)：第三方软件许可（htmx MIT）
+- [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)：第三方软件许可（htmx 4 采用 0BSD，字体采用 SIL OFL 1.1）
 - [packaging/cloudnest.service](packaging/cloudnest.service)：systemd 服务单元

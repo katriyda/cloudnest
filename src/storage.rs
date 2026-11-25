@@ -28,7 +28,7 @@ pub async fn ensure_quota(
     let used = usage_bytes(pool, owner_id).await?;
     if used.saturating_add(additional) > quota_bytes {
         return Err(AppError::BadRequest(format!(
-            "存储空间不足：已用 {}，本次需要 {}，配额 {}",
+            "存储空间不足：已用 {}，本次需要 {}，可用空间 {}",
             util::human_size(used),
             util::human_size(additional),
             util::human_size(quota_bytes)
@@ -89,7 +89,7 @@ pub async fn ensure_folder_path(
         if let Some((id, is_dir)) = existing {
             if is_dir == 0 {
                 return Err(AppError::BadRequest(format!(
-                    "路径中的“{component}”已是一个文件"
+                    "“{component}”已经是一个文件，不能再作为文件夹"
                 )));
             }
             parent_id = id;

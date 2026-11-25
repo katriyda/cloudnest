@@ -1,13 +1,16 @@
 <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
   <div class="modal-head">
-    <div><span class="eyebrow">创建分享</span><h2 id="dialog-title">分享{% if page.is_dir %}文件夹{% else %}文件{% endif %}</h2></div>
+    <div>
+      <h2 id="dialog-title">创建分享</h2>
+      <p>{% if page.fixed_file %}{{ page.selected_name }}{% else %}选择文件或文件夹{% endif %}</p>
+    </div>
     <button type="button" class="icon-btn" data-modal-close aria-label="关闭">{% include "icons/close.svg" %}</button>
   </div>
   <form method="post" action="{{ page.action }}" class="stack-form">
     <input type="hidden" name="csrf" value="{{ page.csrf }}">
     {% if page.fixed_file %}
     <input type="hidden" name="file_id" value="{{ page.selected_id }}">
-    <p class="modal-note">正在分享：<strong>{{ page.selected_name }}</strong></p>
+    <p class="modal-note">分享对象：<strong>{{ page.selected_name }}</strong></p>
     {% else %}
     <label class="field">
       <span class="field-label">选择文件或文件夹</span>
@@ -35,7 +38,7 @@
     </div>
     <div class="modal-actions">
       <button type="button" class="btn btn-ghost" data-modal-close>取消</button>
-      <button class="btn btn-primary" type="submit">创建分享</button>
+      <button class="btn btn-primary" type="submit">生成链接</button>
     </div>
   </form>
 </div>

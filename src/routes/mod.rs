@@ -18,6 +18,18 @@ const APP_CSS: &str = include_str!("../../static/app.css");
 const APP_JS: &str = include_str!("../../static/app.js");
 const HTMX_JS: &str = include_str!("../../static/htmx.min.js");
 const FAVICON: &str = include_str!("../../static/favicon.svg");
+const FONT_UI_400: &[u8] =
+    include_bytes!("../../static/fonts/space-grotesk-latin-400-normal.woff2");
+const FONT_UI_500: &[u8] =
+    include_bytes!("../../static/fonts/space-grotesk-latin-500-normal.woff2");
+const FONT_UI_600: &[u8] =
+    include_bytes!("../../static/fonts/space-grotesk-latin-600-normal.woff2");
+const FONT_UI_700: &[u8] =
+    include_bytes!("../../static/fonts/space-grotesk-latin-700-normal.woff2");
+const FONT_MONO_400: &[u8] =
+    include_bytes!("../../static/fonts/ibm-plex-mono-latin-400-normal.woff2");
+const FONT_MONO_500: &[u8] =
+    include_bytes!("../../static/fonts/ibm-plex-mono-latin-500-normal.woff2");
 
 pub fn router(state: AppState) -> Router {
     let max_body = state.config.max_upload_bytes() as usize;
@@ -28,6 +40,30 @@ pub fn router(state: AppState) -> Router {
         .route("/static/app.js", get(asset_js))
         .route("/static/htmx.min.js", get(asset_htmx))
         .route("/static/favicon.svg", get(asset_favicon))
+        .route(
+            "/static/fonts/space-grotesk-latin-400-normal.woff2",
+            get(asset_font_ui_400),
+        )
+        .route(
+            "/static/fonts/space-grotesk-latin-500-normal.woff2",
+            get(asset_font_ui_500),
+        )
+        .route(
+            "/static/fonts/space-grotesk-latin-600-normal.woff2",
+            get(asset_font_ui_600),
+        )
+        .route(
+            "/static/fonts/space-grotesk-latin-700-normal.woff2",
+            get(asset_font_ui_700),
+        )
+        .route(
+            "/static/fonts/ibm-plex-mono-latin-400-normal.woff2",
+            get(asset_font_mono_400),
+        )
+        .route(
+            "/static/fonts/ibm-plex-mono-latin-500-normal.woff2",
+            get(asset_font_mono_500),
+        )
         .route(
             "/login",
             get(auth_routes::login_page).post(auth_routes::login_submit),
@@ -176,7 +212,7 @@ async fn asset_css() -> Response {
     );
     response.headers_mut().insert(
         header::CACHE_CONTROL,
-        HeaderValue::from_static("public, max-age=3600"),
+        HeaderValue::from_static("public, max-age=0, must-revalidate"),
     );
     response
 }
@@ -189,7 +225,7 @@ async fn asset_js() -> Response {
     );
     response.headers_mut().insert(
         header::CACHE_CONTROL,
-        HeaderValue::from_static("public, max-age=3600"),
+        HeaderValue::from_static("public, max-age=0, must-revalidate"),
     );
     response
 }
@@ -202,9 +238,45 @@ async fn asset_htmx() -> Response {
     );
     response.headers_mut().insert(
         header::CACHE_CONTROL,
-        HeaderValue::from_static("public, max-age=3600"),
+        HeaderValue::from_static("public, max-age=0, must-revalidate"),
     );
     response
+}
+
+fn font_response(bytes: &'static [u8]) -> Response {
+    let mut response = bytes.into_response();
+    response
+        .headers_mut()
+        .insert(header::CONTENT_TYPE, HeaderValue::from_static("font/woff2"));
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("public, max-age=31536000, immutable"),
+    );
+    response
+}
+
+async fn asset_font_ui_400() -> Response {
+    font_response(FONT_UI_400)
+}
+
+async fn asset_font_ui_500() -> Response {
+    font_response(FONT_UI_500)
+}
+
+async fn asset_font_ui_600() -> Response {
+    font_response(FONT_UI_600)
+}
+
+async fn asset_font_ui_700() -> Response {
+    font_response(FONT_UI_700)
+}
+
+async fn asset_font_mono_400() -> Response {
+    font_response(FONT_MONO_400)
+}
+
+async fn asset_font_mono_500() -> Response {
+    font_response(FONT_MONO_500)
 }
 
 async fn asset_favicon() -> Response {

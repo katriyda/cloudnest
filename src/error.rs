@@ -48,7 +48,7 @@ impl From<std::io::Error> for AppError {
 
 impl From<axum::extract::multipart::MultipartError> for AppError {
     fn from(value: axum::extract::multipart::MultipartError) -> Self {
-        Self::BadRequest(format!("上传数据无效: {value}"))
+        Self::BadRequest(format!("上传没有完成，请重试。详情: {value}"))
     }
 }
 
@@ -70,15 +70,15 @@ impl IntoResponse for AppError {
             Self::Unauthorized => {
                 return (StatusCode::SEE_OTHER, [(header::LOCATION, "/login")]).into_response();
             }
-            Self::Forbidden(message) => (StatusCode::FORBIDDEN, "没有权限", message),
-            Self::NotFound(message) => (StatusCode::NOT_FOUND, "未找到", message),
-            Self::BadRequest(message) => (StatusCode::BAD_REQUEST, "请求无效", message),
+            Self::Forbidden(message) => (StatusCode::FORBIDDEN, "没有访问权限", message),
+            Self::NotFound(message) => (StatusCode::NOT_FOUND, "内容不可用", message),
+            Self::BadRequest(message) => (StatusCode::BAD_REQUEST, "操作没有完成", message),
             Self::Internal(message) => {
                 tracing::error!("内部错误: {message}");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    "服务出错",
-                    "服务器发生错误，请稍后重试。".to_string(),
+                    "出了点问题",
+                    "请稍后重试。".to_string(),
                 )
             }
         };
@@ -96,7 +96,7 @@ impl IntoResponse for AppError {
                 .into_response(),
             Err(err) => {
                 tracing::error!("错误页渲染失败: {err}");
-                (status, "服务器发生错误").into_response()
+                (status, "出了点问题").into_response()
             }
         }
     }

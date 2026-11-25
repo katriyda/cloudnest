@@ -13,40 +13,52 @@
 </head>
 <body class="auth-body">
 <div class="auth-shell">
-  <div class="auth-brand">
-    <a href="/" class="brand-link">
-      <span class="brand-mark">{% include "icons/cloud.svg" %}</span>
-      <span class="brand-text">Cloud<span>Nest</span></span>
-    </a>
-    <button class="icon-btn theme-toggle" type="button" data-theme-toggle aria-label="切换主题">
-      <span class="theme-icon-light">{% include "icons/sun.svg" %}</span>
-      <span class="theme-icon-dark">{% include "icons/moon.svg" %}</span>
-    </button>
-  </div>
-  <div class="auth-card">
-    <div class="auth-heading">
-      <span class="eyebrow">欢迎回来</span>
-      <h1>登录你的网盘</h1>
-      <p>安全存放和分享你的文件。</p>
+  <section class="auth-facts">
+    <div class="auth-brand">
+      <a href="/" class="brand-link">
+        <span class="brand-mark">{% include "icons/cloud.svg" %}</span>
+        <span class="brand-text">CloudNest</span>
+      </a>
+      <button class="icon-btn theme-toggle" type="button" data-theme-toggle aria-label="切换主题">
+        <span class="theme-icon-light">{% include "icons/sun.svg" %}</span>
+        <span class="theme-icon-dark">{% include "icons/moon.svg" %}</span>
+      </button>
     </div>
-    {% if let Some(error) = page.error %}
-    <div class="flash flash-err" role="alert"><span class="flash-dot"></span><span>{{ error }}</span></div>
-    {% endif %}
-    <form method="post" action="/login" class="stack-form">
-      <input type="hidden" name="next" value="{{ page.next }}">
-      <label class="field">
-        <span class="field-label">用户名</span>
-        <input type="text" name="username" value="{{ page.username }}" required autofocus autocomplete="username" spellcheck="false">
-      </label>
-      <label class="field">
-        <span class="field-label">密码</span>
-        <input type="password" name="password" required autocomplete="current-password">
-      </label>
-      <button class="btn btn-primary btn-block" type="submit">登录</button>
-    </form>
-    <p class="auth-footnote">首次使用？如果系统尚未初始化，请访问 <a href="/setup">初始化页面</a>。</p>
-  </div>
-  <p class="auth-copyright">CloudNest · 简单可靠的个人网盘</p>
+    <div class="auth-facts-body">
+      <h1>你的个人网盘</h1>
+      <p class="auth-lede">上传、整理、预览和分享文件，所有内容都在你自己的网盘里。</p>
+      <ul class="fact-list">
+        <li><span class="fact-num">01</span><span>上传、下载、在线预览与文件夹管理。</span></li>
+        <li><span class="fact-num">02</span><span>分享链接可以设置提取密码、有效期和下载次数。</span></li>
+        <li><span class="fact-num">03</span><span>删除的文件先进入回收站，管理员可以给每个账户设置存储空间。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="auth-pane">
+    <div class="auth-card">
+      <div class="auth-head">
+        <h2>登录</h2>
+        <p>使用管理员分配的账户</p>
+      </div>
+      {% if let Some(error) = page.error %}
+      <div class="flash flash-err" role="alert"><span class="flash-mark"></span><span>{{ error }}</span></div>
+      {% endif %}
+      <form method="post" action="/login" class="stack-form">
+        <input type="hidden" name="next" value="{{ page.next }}">
+        <label class="field">
+          <span class="field-label">用户名</span>
+          <input type="text" name="username" value="{{ page.username }}" required autofocus autocomplete="username" spellcheck="false">
+        </label>
+        <label class="field">
+          <span class="field-label">密码</span>
+          <input type="password" name="password" required autocomplete="current-password">
+        </label>
+        <button class="btn btn-primary btn-block" type="submit">进入网盘</button>
+      </form>
+      <p class="auth-footnote">尚未初始化？访问 <a href="/setup">创建管理员账户</a>。</p>
+    </div>
+  </section>
 </div>
 </body>
 </html>

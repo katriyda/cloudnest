@@ -1,46 +1,38 @@
 {% extends "base.html" %}
-{% block title %}我的分享 · CloudNest{% endblock %}
+{% block title %}分享链接 · CloudNest{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="page-strip">
   <div class="page-title-wrap">
-    <span class="eyebrow">分享</span>
-    <h1>我的分享</h1>
-    <p class="page-sub">管理分享链接、提取密码和有效期。访客无需登录即可访问。</p>
+    <h1>分享链接</h1>
+    <p class="page-note">{{ page.shares.len() }} 个链接 · 访客无需登录即可访问</p>
   </div>
   <div class="head-actions">
-    <button class="btn btn-primary" type="button" hx-get="{{ page.new_share_url }}" hx-target="#modal" hx-swap="innerHTML">
+    <button class="btn btn-primary btn-small" type="button" hx-get="{{ page.new_share_url }}" hx-target="#modal" hx-swap="innerHTML">
       <span class="btn-icon">{% include "icons/share.svg" %}</span>新建分享
     </button>
   </div>
 </div>
 
 {% if page.shares.is_empty() %}
-<div class="files-pane">
-  <div class="empty-state">
-    <span class="empty-icon">{% include "icons/link.svg" %}</span>
-    <h2>还没有分享链接</h2>
-    <p>在文件列表中选择文件或文件夹，点击分享按钮即可生成链接。</p>
-    <a class="btn btn-soft" href="/files">去选择文件</a>
-  </div>
+<div class="empty-state">
+  <span class="empty-mark">0 个链接</span>
+  <h2>还没有分享链接</h2>
+  <p>在文件列表里点开文件的分享按钮，就能生成一个公开链接；可以设置提取密码、有效期和下载次数上限。</p>
+  <a class="btn btn-quiet btn-small" href="/files">去选择文件</a>
 </div>
 {% else %}
-<div class="share-list">
+<div class="ledger">
   {% for share in page.shares %}
-  <div class="share-card">
+  <div class="share-row">
     <div class="share-card-main">
       <span class="file-icon{% if share.is_dir %} is-dir{% endif %}">
-        {% if share.is_dir %}{% include "icons/folder.svg" %}{% else %}<span class="ext">LINK</span>{% endif %}
+        {% if share.is_dir %}{% include "icons/folder.svg" %}{% else %}{% include "icons/share.svg" %}{% endif %}
       </span>
       <div class="share-info">
         <div class="share-title">
           <strong>{{ share.name }}</strong>
           {% if share.active %}<span class="badge badge-ok">有效</span>{% else %}<span class="badge badge-muted">已失效</span>{% endif %}
-          {% if share.has_password %}<span class="badge">密码</span>{% endif %}
-        </div>
-        <div class="share-url-row">
-          <input class="share-url" type="text" readonly value="{{ share.url }}" aria-label="分享链接">
-          <button class="btn btn-small btn-soft" type="button" data-copy="{{ share.url }}">{% include "icons/copy.svg" %}复制</button>
-          <a class="btn btn-small btn-ghost" href="{{ share.url }}" target="_blank" rel="noopener">打开</a>
+          {% if share.has_password %}<span class="badge">需要密码</span>{% endif %}
         </div>
         <div class="share-meta">
           <span>创建于 {{ share.created_text }}</span>
@@ -50,10 +42,12 @@
       </div>
     </div>
     <div class="share-card-actions">
+      <button class="btn btn-small btn-quiet" type="button" data-copy="{{ share.url }}">{% include "icons/copy.svg" %}复制链接</button>
+      <a class="btn btn-small btn-ghost" href="{{ share.url }}" target="_blank" rel="noopener">打开</a>
       <form method="post" action="/shares/delete" data-confirm="确定取消这个分享链接吗？">
         <input type="hidden" name="csrf" value="{{ page.common.csrf }}">
         <input type="hidden" name="id" value="{{ share.id }}">
-        <button class="btn btn-small btn-danger-soft" type="submit">取消分享</button>
+        <button class="btn btn-small btn-danger" type="submit">取消分享</button>
       </form>
     </div>
   </div>

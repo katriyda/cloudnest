@@ -10,16 +10,22 @@
 </head>
 <body class="auth-body">
 <div class="auth-shell">
-  <div class="auth-brand">
-    <a href="/" class="brand-link"><span class="brand-mark">{% include "icons/cloud.svg" %}</span><span class="brand-text">Cloud<span>Nest</span></span></a>
-  </div>
-  <div class="auth-card error-card">
-    <span class="error-status">{{ status }}</span>
-    <h1>{{ title }}</h1>
-    <p>{{ message }}</p>
-    <a class="btn btn-primary" href="/files">返回我的文件</a>
-  </div>
-  <p class="auth-copyright">CloudNest · 简单可靠的个人网盘</p>
+  <section class="auth-facts">
+    <div class="auth-brand">
+      <a href="/" class="brand-link"><span class="brand-mark">{% include "icons/cloud.svg" %}</span><span class="brand-text">CloudNest</span></a>
+    </div>
+    <div class="auth-facts-body">
+      <h1>操作没有完成</h1>
+      <p class="auth-lede">可以回到文件列表再试一次；如果一直没有成功，请确认自己已经登录，或者联系管理员。</p>
+    </div>
+  </section>
+  <section class="auth-pane">
+    <div class="auth-card error-card">
+      <h1>{{ title }}</h1>
+      <p>{{ message }}</p>
+      <a class="btn btn-primary" href="/files">返回我的文件</a>
+    </div>
+  </section>
 </div>
 </body>
 </html>

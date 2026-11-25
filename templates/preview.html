@@ -1,18 +1,18 @@
 {% extends "base.html" %}
 {% block title %}{{ page.name }} · CloudNest{% endblock %}
 {% block content %}
-<div class="page-head preview-head">
+<div class="page-strip preview-head">
   <div class="page-title-wrap">
-    <div class="crumbs">
+    <nav class="crumbs" aria-label="当前位置">
       <a class="crumb" href="{{ page.back_url }}">我的文件</a>
-      <span class="crumb-sep">{% include "icons/chevron.svg" %}</span>
+      <span class="crumb-sep" aria-hidden="true">/</span>
       <span class="crumb is-current">{{ page.name }}</span>
-    </div>
+    </nav>
     <h1 class="preview-name">{{ page.name }}</h1>
-    <p class="page-sub">{{ page.size_text }}{% if page.mime != "" %} · {{ page.mime }}{% endif %}</p>
+    <p class="page-note">{{ page.size_text }}</p>
   </div>
   <div class="head-actions">
-    <a class="btn btn-primary" href="{{ page.download_url }}">{% include "icons/download.svg" %}下载</a>
+    <a class="btn btn-primary btn-small" href="{{ page.download_url }}">{% include "icons/download.svg" %}下载</a>
   </div>
 </div>
 
@@ -36,10 +36,10 @@
   </div>
   {% else %}
   <div class="preview-fallback">
-    <span class="empty-icon">{% include "icons/cloud.svg" %}</span>
+    <span class="empty-mark">不支持预览</span>
     <h2>该格式暂不支持在线预览</h2>
     <p>下载后使用本地应用打开。</p>
-    <a class="btn btn-primary" href="{{ page.download_url }}">下载文件</a>
+    <a class="btn btn-primary btn-small" href="{{ page.download_url }}">下载文件</a>
   </div>
   {% endif %}
 </div>

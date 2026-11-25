@@ -1,6 +1,9 @@
 <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
   <div class="modal-head">
-    <div><span class="eyebrow">{% if page.is_dir %}文件夹{% else %}文件{% endif %}</span><h2 id="dialog-title">重命名</h2></div>
+    <div>
+      <h2 id="dialog-title">重命名{% if page.is_dir %}文件夹{% else %}文件{% endif %}</h2>
+      <p>{{ page.name }}</p>
+    </div>
     <button type="button" class="icon-btn" data-modal-close aria-label="关闭">{% include "icons/close.svg" %}</button>
   </div>
   <form method="post" action="{{ page.action }}" class="stack-form">
@@ -13,7 +16,7 @@
     </label>
     <div class="modal-actions">
       <button type="button" class="btn btn-ghost" data-modal-close>取消</button>
-      <button class="btn btn-primary" type="submit">保存</button>
+      <button class="btn btn-primary" type="submit">保存名称</button>
     </div>
   </form>
 </div>

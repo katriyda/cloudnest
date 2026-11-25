@@ -86,10 +86,10 @@
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape' && modal.classList.contains('is-open')) closeModal();
     });
-    document.body.addEventListener('htmx:afterSwap', (event) => {
-      if (event.target && event.target.id === 'modal') openModal();
+    document.body.addEventListener('htmx:after:swap', () => {
+      if (modal && modal.innerHTML.trim() !== '') openModal();
     });
-    document.body.addEventListener('htmx:responseError', () => {
+    document.body.addEventListener('htmx:response:error', () => {
       if (modal) closeModal();
     });
   }
@@ -103,11 +103,15 @@
         await navigator.clipboard.writeText(text);
         btn.textContent = '已复制';
       } catch (e) {
-        const input = btn.parentElement && btn.parentElement.querySelector('.share-url');
-        if (input) {
-          input.select();
-          try { document.execCommand('copy'); btn.textContent = '已复制'; } catch (err) {}
-        }
+        const area = document.createElement('textarea');
+        area.value = text;
+        area.setAttribute('readonly', '');
+        area.style.position = 'fixed';
+        area.style.top = '-1000px';
+        document.body.appendChild(area);
+        area.select();
+        try { document.execCommand('copy'); btn.textContent = '已复制'; } catch (err) {}
+        document.body.removeChild(area);
       }
       setTimeout(() => { btn.innerHTML = label; }, 1600);
     });
@@ -164,9 +168,9 @@
         };
         xhr.onload = () => {
           if (xhr.status >= 200 && xhr.status < 400) resolve();
-          else reject(new Error('上传失败（HTTP ' + xhr.status + '）'));
+          else reject(new Error('上传没有完成，请重试'));
         };
-        xhr.onerror = () => reject(new Error('网络错误，上传中断'));
+        xhr.onerror = () => reject(new Error('网络连接中断，请重试'));
         const form = new FormData();
         form.append('csrf', csrf());
         form.append('parent_id', parentId);
@@ -188,7 +192,7 @@
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body
       });
-      if (!response.ok) throw new Error('无法开始分块上传（HTTP ' + response.status + '）');
+      if (!response.ok) throw new Error('上传没有开始，请检查网络后重试');
       return await response.json();
     }
 
@@ -207,9 +211,9 @@
         xhr.setRequestHeader('Content-Type', 'application/octet-stream');
         xhr.onload = () => {
           if (xhr.status >= 200 && xhr.status < 300) resolve();
-          else reject(new Error('分块上传失败（HTTP ' + xhr.status + '）'));
+          else reject(new Error('上传中断，请重试'));
         };
-        xhr.onerror = () => reject(new Error('网络错误，分块上传中断'));
+        xhr.onerror = () => reject(new Error('网络连接中断，请重试'));
         xhr.send(blob);
       });
     }
@@ -257,7 +261,7 @@
         method: 'POST',
         headers: { 'X-CSRF-Token': csrf() }
       });
-      if (!response.ok) throw new Error('完成上传失败（HTTP ' + response.status + '）');
+      if (!response.ok) throw new Error('上传完成确认失败，请刷新页面检查文件是否已上传');
       try { localStorage.removeItem(fingerprint); } catch (e) {}
     }
 
@@ -274,7 +278,7 @@
           if (item.file.size > 16 * 1024 * 1024) await uploadChunked(item.file, item.relDir);
           else await uploadMultipart(item.file, item.relDir);
         } catch (err) {
-          fail((err && err.message) || '上传失败');
+          fail((err && err.message) || '上传没有完成，请重试');
           uploading = false;
           return;
         }

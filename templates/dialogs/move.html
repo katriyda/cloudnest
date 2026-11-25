@@ -1,6 +1,9 @@
 <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
   <div class="modal-head">
-    <div><span class="eyebrow">移动</span><h2 id="dialog-title">{{ page.name }}</h2></div>
+    <div>
+      <h2 id="dialog-title">移动</h2>
+      <p>{{ page.name }}</p>
+    </div>
     <button type="button" class="icon-btn" data-modal-close aria-label="关闭">{% include "icons/close.svg" %}</button>
   </div>
   <form method="post" action="{{ page.action }}" class="stack-form">
@@ -13,11 +16,11 @@
         <option value="{{ folder.id }}"{% if folder.selected %} selected{% endif %}>{{ folder.label }}</option>
         {% endfor %}
       </select>
-      <span class="field-hint">只能移动到你自己账户中的文件夹。文件夹不能移动到自身内部。</span>
+      <span class="field-hint">只列出你自己账户中的文件夹；文件夹不能移动到自身内部。</span>
     </label>
     <div class="modal-actions">
       <button type="button" class="btn btn-ghost" data-modal-close>取消</button>
-      <button class="btn btn-primary" type="submit">移动</button>
+      <button class="btn btn-primary" type="submit">移动到此处</button>
     </div>
   </form>
 </div>
