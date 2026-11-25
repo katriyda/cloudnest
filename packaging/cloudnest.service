@@ -1,6 +1,6 @@
 [Unit]
 Description=CloudNest 个人云盘服务
-Documentation=https://github.com/cloudnest-app/cloudnest
+Documentation=https://github.com/katriyda/cloudnest
 After=network-online.target
 Wants=network-online.target
 

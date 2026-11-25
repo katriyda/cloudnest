@@ -659,6 +659,28 @@ async fn password_share_and_download_limits() {
     assert_eq!(response.status(), StatusCode::OK);
     assert!(body_text(response).await.contains("提取密码"));
 
+    // 未输入提取密码时，直链下载与原始内容都必须被拒绝（不能绕过密码）。
+    let response = send(
+        &t.app,
+        Method::GET,
+        &format!("/s/{token}/download"),
+        None,
+        Body::empty(),
+        None,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    let response = send(
+        &t.app,
+        Method::GET,
+        &format!("/s/{token}/raw"),
+        None,
+        Body::empty(),
+        None,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
     let response = send(
         &t.app,
         Method::POST,

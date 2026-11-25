@@ -3,7 +3,7 @@
 # CloudNest 一键安装脚本（Linux x86_64 / aarch64）
 #
 # 联网安装：
-#   curl -fsSL https://raw.githubusercontent.com/cloudnest-app/cloudnest/main/scripts/install.sh | sudo bash
+#   curl -fsSL https://raw.githubusercontent.com/katriyda/cloudnest/main/scripts/install.sh | sudo bash
 #
 # 从发布包安装（无需联网）：
 #   tar -xzf cloudnest-linux-x86_64.tar.gz
@@ -11,7 +11,7 @@
 #
 # 环境变量：
 #   CLOUDNEST_VERSION   指定版本号（2.0.0 或 v2.0.0），默认 latest
-#   CLOUDNEST_REPO      覆盖 GitHub 仓库，默认 cloudnest-app/cloudnest
+#   CLOUDNEST_REPO      覆盖 GitHub 仓库，默认 katriyda/cloudnest
 #
 # 安装位置：
 #   /opt/cloudnest/cloudnest                    主程序
@@ -24,8 +24,8 @@
 set -eo pipefail
 umask 077
 
-readonly DEFAULT_REPO=cloudnest-app/cloudnest
-readonly SERVICE_NAME=cloudnest
+readonly DEFAULT_REPO=katriyda/cloudnest
+readonly SERVICE_NAME=cloudnest.service
 readonly SERVICE_USER=cloudnest
 readonly INSTALL_DIR=/opt/cloudnest
 readonly CONFIG_DIR=/etc/cloudnest

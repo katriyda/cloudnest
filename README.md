@@ -2,7 +2,7 @@
 
 CloudNest 是一个轻量、可靠的个人云盘：单个静态二进制 + SQLite，提供 Web 文件管理、分享链接、多用户与配额管理，适合部署在家庭服务器、NAS 或小型 VPS 上自用。
 
-- 项目主页 / 仓库：<https://github.com/cloudnest-app/cloudnest>
+- 项目主页 / 仓库：<https://github.com/katriyda/cloudnest>
 - 许可证：MIT
 - 版本：v2.0.0
 
@@ -46,27 +46,27 @@ CloudNest 是一个轻量、可靠的个人云盘：单个静态二进制 + SQLi
 ### 方式一：一键安装（推荐）
 
 ```bash
-curl -fsSL https://github.com/cloudnest-app/cloudnest/releases/latest/download/install.sh | sudo bash
+curl -fsSL https://github.com/katriyda/cloudnest/releases/latest/download/install.sh | sudo bash
 ```
 
 指定版本：
 
 ```bash
-curl -fsSL https://github.com/cloudnest-app/cloudnest/releases/latest/download/install.sh | \
+curl -fsSL https://github.com/katriyda/cloudnest/releases/latest/download/install.sh | \
   sudo env CLOUDNEST_VERSION=2.0.0 bash
 ```
 
 安装完成后：
 
 1. 编辑 `/etc/cloudnest/config.toml`，至少修改 `public_url` 与 `secure_cookies`；
-2. 执行 `sudo systemctl restart cloudnest`；
+2. 执行 `sudo systemctl restart cloudnest.service`；
 3. 浏览器访问 `public_url`，完成管理员账号初始化。
 
 ### 方式二：使用发布包离线安装
 
 ```bash
-curl -LO https://github.com/cloudnest-app/cloudnest/releases/latest/download/cloudnest-linux-x86_64.tar.gz
-curl -LO https://github.com/cloudnest-app/cloudnest/releases/latest/download/SHA256SUMS
+curl -LO https://github.com/katriyda/cloudnest/releases/latest/download/cloudnest-linux-x86_64.tar.gz
+curl -LO https://github.com/katriyda/cloudnest/releases/latest/download/SHA256SUMS
 sha256sum -c SHA256SUMS --ignore-missing
 tar -xzf cloudnest-linux-x86_64.tar.gz
 sudo bash ./install.sh
@@ -81,7 +81,7 @@ aarch64 机器将文件名中的 `x86_64` 换成 `aarch64`。
 - 检测系统架构并从 GitHub Releases 下载对应架构的 tar.gz，使用 `.sha256` 或 `SHA256SUMS` 校验完整性；
 - 创建系统用户 `cloudnest`，创建目录 `/opt/cloudnest`、`/etc/cloudnest`、`/var/lib/cloudnest`；
 - 将二进制安装到 `/opt/cloudnest/cloudnest`，安装 systemd 服务 `/etc/systemd/system/cloudnest.service`；
-- 复制配置示例 `/etc/cloudnest/config.toml`（已存在时不会覆盖），并执行 `systemctl enable --now cloudnest`。
+- 复制配置示例 `/etc/cloudnest/config.toml`（已存在时不会覆盖），并执行 `systemctl enable --now cloudnest.service`。
 
 安装脚本支持环境变量 `CLOUDNEST_VERSION`、`CLOUDNEST_REPO`，以及 `--version`、`--no-start` 参数。
 
@@ -160,13 +160,13 @@ server {
 
 ## systemd 管理
 
-服务名称为 `cloudnest`（unit 文件 [packaging/cloudnest.service](packaging/cloudnest.service)）。
+服务名称为 `cloudnest.service`（unit 文件 [packaging/cloudnest.service](packaging/cloudnest.service)）。
 
 ```bash
-sudo systemctl status cloudnest
-sudo systemctl restart cloudnest
-sudo systemctl stop cloudnest
-sudo systemctl disable --now cloudnest
+sudo systemctl status cloudnest.service
+sudo systemctl restart cloudnest.service
+sudo systemctl stop cloudnest.service
+sudo systemctl disable --now cloudnest.service
 ```
 
 ## 日志
@@ -174,9 +174,9 @@ sudo systemctl disable --now cloudnest
 服务日志写入 journald：
 
 ```bash
-sudo journalctl -u cloudnest -f
-sudo journalctl -u cloudnest -n 200 --no-pager
-sudo journalctl -u cloudnest --since "1 hour ago"
+sudo journalctl -u cloudnest.service -f
+sudo journalctl -u cloudnest.service -n 200 --no-pager
+sudo journalctl -u cloudnest.service --since "1 hour ago"
 ```
 
 日志级别可通过 systemd 单元中的 `Environment=RUST_LOG=info` 调整（例如临时设置 `RUST_LOG=debug`）。
@@ -201,17 +201,17 @@ cloudnest restore --from DIR                          # 从备份目录恢复
 备份前建议停止服务，确保 SQLite 数据库与文件一致：
 
 ```bash
-sudo systemctl stop cloudnest
+sudo systemctl stop cloudnest.service
 sudo /opt/cloudnest/cloudnest backup --output /var/backups/cloudnest-$(date +%F)
-sudo systemctl start cloudnest
+sudo systemctl start cloudnest.service
 ```
 
 恢复（服务需停止）：
 
 ```bash
-sudo systemctl stop cloudnest
+sudo systemctl stop cloudnest.service
 sudo /opt/cloudnest/cloudnest restore --from /var/backups/cloudnest-2026-01-01
-sudo systemctl start cloudnest
+sudo systemctl start cloudnest.service
 ```
 
 备份目录包含数据与数据库，可能含敏感信息，请设置严格权限并异地保存。详见 [docs/DEPLOY.md](docs/DEPLOY.md)。
@@ -222,7 +222,7 @@ sudo systemctl start cloudnest
 
 ```bash
 sudo /opt/cloudnest/cloudnest backup --output /var/backups/cloudnest-$(date +%F)
-curl -fsSL https://github.com/cloudnest-app/cloudnest/releases/latest/download/install.sh | sudo bash
+curl -fsSL https://github.com/katriyda/cloudnest/releases/latest/download/install.sh | sudo bash
 ```
 
 也可执行 `cloudnest update`。升级后如新增配置项，请对照 [packaging/config.toml.example](packaging/config.toml.example) 检查 `/etc/cloudnest/config.toml`。
@@ -237,7 +237,7 @@ sudo /opt/cloudnest/cloudnest uninstall --purge   # 同时删除配置与数据�
 如 CLI 不可用，可手动执行：
 
 ```bash
-sudo systemctl disable --now cloudnest
+sudo systemctl disable --now cloudnest.service
 sudo rm -f /etc/systemd/system/cloudnest.service
 sudo systemctl daemon-reload
 sudo rm -rf /opt/cloudnest /etc/cloudnest

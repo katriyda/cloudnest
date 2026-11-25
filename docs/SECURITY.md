@@ -151,6 +151,6 @@ systemd 单元 [packaging/cloudnest.service](../packaging/cloudnest.service) 默
 
 如发现安全问题，请通过 GitHub 仓库的私有漏洞报告渠道（Security Advisory）联系维护者，避免在公开 Issue 中披露可被利用的细节：
 
-<https://github.com/cloudnest-app/cloudnest/security/advisories>
+<https://github.com/katriyda/cloudnest/security/advisories>
 
 报告时请尽量提供：受影响版本、复现步骤、影响范围与可能的修复建议。

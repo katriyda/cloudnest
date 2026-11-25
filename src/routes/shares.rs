@@ -716,7 +716,7 @@ async fn public_download_file(
     file_id: i64,
     headers: &HeaderMap,
 ) -> Result<Response, AppError> {
-    require_access(state, record)?;
+    ensure_unlocked(state, record, headers).await?;
     let file = load_public_file(state, record, file_id).await?;
     increment_download(state, record).await?;
     crate::routes::files::serve_owned_file(state, record.owner_id, &file, false, headers).await
@@ -728,7 +728,7 @@ async fn public_raw_file(
     file_id: i64,
     headers: &HeaderMap,
 ) -> Result<Response, AppError> {
-    require_access(state, record)?;
+    ensure_unlocked(state, record, headers).await?;
     let file = load_public_file(state, record, file_id).await?;
     crate::routes::files::serve_owned_file(state, record.owner_id, &file, true, headers).await
 }

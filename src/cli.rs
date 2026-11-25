@@ -10,7 +10,7 @@ use std::process::Command as ProcessCommand;
 use tracing_subscriber::EnvFilter;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-pub const REPO: &str = "cloudnest-app/cloudnest";
+pub const REPO: &str = "katriyda/cloudnest";
 const SERVICE_NAME: &str = "cloudnest.service";
 const SERVICE_FILE: &str = "/etc/systemd/system/cloudnest.service";
 const INSTALL_DIR: &str = "/opt/cloudnest";
