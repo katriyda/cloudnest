@@ -1,0 +1,59 @@
+name: Install smoke test
+
+# 在发布产物上真实执行一键安装脚本，验证下载、校验、安装、unit 文件与 CLI。
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  linux-install:
+    name: 在 ubuntu 上真实执行 install.sh
+    runs-on: ubuntu-latest
+    steps:
+      - name: 下载并执行发布版安装脚本
+        run: |
+          set -euo pipefail
+          repo="${GITHUB_REPOSITORY}"
+          echo "repo: $repo"
+          curl -fsSL "https://github.com/$repo/releases/latest/download/install.sh" -o /tmp/install.sh
+          head -n 4 /tmp/install.sh
+          chmod +x /tmp/install.sh
+          sudo bash /tmp/install.sh --no-start
+
+      - name: 校验安装结果
+        run: |
+          set -euo pipefail
+          unit=$(ls /etc/systemd/system/*.service | head -n 1)
+          echo "unit: $unit"
+          cat "$unit"
+          bin=$(sed -n 's/^ExecStart=//p' "$unit" | cut -d' ' -f1)
+          echo "binary: $bin"
+          test -x "$bin"
+          "$bin" version
+          cfg=$(ls /etc/*/config.toml 2>/dev/null | head -n 1)
+          echo "config: $cfg"
+          test -f "$cfg"
+          systemctl is-enabled "$(basename "$unit")"
+          "$bin" status -c "$cfg" || true
+
+      - name: 校验 Release 资产与 SHA256SUMS
+        run: |
+          set -euo pipefail
+          repo="${GITHUB_REPOSITORY}"
+          curl -fsSL "https://github.com/$repo/releases/latest/download/SHA256SUMS" -o /tmp/SHA256SUMS
+          cat /tmp/SHA256SUMS
+          asset=$(awk '{print $2}' /tmp/SHA256SUMS | grep 'x86_64' | head -n 1)
+          asset=${asset#\*}
+          curl -fsSL "https://github.com/$repo/releases/latest/download/$asset" -o "/tmp/$asset"
+          cd /tmp && sha256sum -c SHA256SUMS --ignore-missing
+
+      - name: 清理
+        if: always()
+        run: |
+          unit=$(ls /etc/systemd/system/*.service 2>/dev/null | head -n 1)
+          if [ -n "$unit" ]; then sudo systemctl disable --now "$(basename "$unit")" || true; fi
+          sudo rm -f /etc/systemd/system/*.service /opt/*/* || true
