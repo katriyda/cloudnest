@@ -1,6 +1,6 @@
 # CloudNest 安全说明
 
-本文档描述 CloudNest v2.0.0 的安全设计、部署加固建议与漏洞报告方式。产品展示名为 CloudNest，命令与路径中的技术标识为 `cloudnest`。
+本文档描述 CloudNest 的安全设计、部署加固建议与漏洞报告方式，具体行为以代码与当前发布版本为准。产品展示名为 CloudNest，命令与路径中的技术标识为 `cloudnest`。
 
 ## 1. 安全模型与边界
 
@@ -145,7 +145,7 @@ systemd 单元 [packaging/cloudnest.service](../packaging/cloudnest.service) 默
 - CloudNest 不内置 TLS，必须依赖反向代理或前置负载均衡提供 HTTPS；
 - 不提供静态数据加密；磁盘级加密需由主机或云平台提供；
 - 当前为单节点 SQLite 架构，不支持多节点共享存储；
-- 安全能力以实际发布版本为准；本文档描述 v2.0.0 的设计与部署建议。
+- 安全能力以代码实现与最新发布为准，本文档不固定版本号。
 
 ## 12. 漏洞报告
 

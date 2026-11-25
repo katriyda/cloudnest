@@ -4,7 +4,7 @@ CloudNest 自身以 MIT 许可证发布（见 `Cargo.toml` 中的 `license = "MI
 
 ## htmx
 
-- 版本：2.0.11
+- 版本：以 `static/htmx.min.js` 内的 `htmx.version` 为准
 - 位置：`static/htmx.min.js`
 - 项目主页：<https://htmx.org/>
 - 源码仓库：<https://github.com/bigskysoftware/htmx>

@@ -1,12 +1,12 @@
 # CloudNest
 
-![CI](https://github.com/katriyda/cloudnest/actions/workflows/ci.yml/badge.svg) ![Release](https://img.shields.io/github/v/release/katriyda/=release)
+![CI](https://github.com/katriyda/cloudnest/actions/workflows/ci.yml/badge.svg) ![Release](https://img.shields.io/github/v/release/katriyda/cloudnest)
 
 CloudNest 是一个轻量、可靠的个人云盘：单个静态二进制 + SQLite，提供 Web 文件管理、分享链接、多用户与配额管理，适合部署在家庭服务器、NAS 或小型 VPS 上自用。
 
 - 项目主页 / 仓库：<https://github.com/katriyda/cloudnest>
 - 许可证：MIT
-- 版本：v2.0.0
+- 版本：以 [Cargo.toml](Cargo.toml) 的 `version` 与 [Releases](https://github.com/katriyda/cloudnest/releases) 为准
 
 ## 功能
 
@@ -55,8 +55,10 @@ curl -fsSL https://github.com/katriyda/cloudnest/releases/latest/download/instal
 
 ```bash
 curl -fsSL https://github.com/katriyda/cloudnest/releases/latest/download/install.sh | \
-  sudo env CLOUDNEST_VERSION=2.0.0 bash
+  sudo env CLOUDNEST_VERSION='<版本号>' bash
 ```
+
+`<版本号>` 取 Releases 页面上的版本（与 `Cargo.toml` 的 `version` 一致）。
 
 安装完成后：
 
@@ -250,9 +252,9 @@ sudo userdel cloudnest
 
 ## 从源码构建
 
-要求 Rust 1.94+（edition 2024，sqlx 0.9 的 MSRV）与 SQLite 静态链接能力（sqlx 的 `sqlite` feature 使用 bundled libsqlite3-sys，无需系统 SQLite）。
+Rust 工具链要求以 `Cargo.toml` 的 `rust-version` 为准，另需 SQLite 静态链接能力（sqlx 的 `sqlite` feature 使用 bundled libsqlite3-sys，无需系统 SQLite）。
 
-CI 使用 stable 工具链；`Cargo.toml` 中的 `rust-version` 与依赖实际 MSRV 保持一致，升级依赖后请同步更新。
+CI 使用 stable 工具链；升级依赖后请核对实际 MSRV 并同步 `Cargo.toml` 的 `rust-version`，本文档不单独记录版本号。
 
 Windows 上使用 `x86_64-pc-windows-gnu` 目标时，需要把 mingw-w64（或 llvm-mingw）的 `bin` 目录加入 `PATH`，否则 rustc 找不到 `dlltool`/`as`，会链接出启动即崩溃的可执行文件。
 

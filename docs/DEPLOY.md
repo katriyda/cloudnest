@@ -1,6 +1,6 @@
 # CloudNest 部署指南
 
-本文档覆盖 CloudNest v2.0.0 在生产环境中的部署、升级、备份恢复与故障排查。命令中的技术标识为 `cloudnest`，产品展示名为 CloudNest。
+本文档覆盖 CloudNest 在生产环境中的部署、升级、备份恢复与故障排查，版本以代码与 Releases 为准。命令中的技术标识为 `cloudnest`，产品展示名为 CloudNest。
 
 ## 1. 运行环境
 
@@ -46,8 +46,10 @@ curl -fsSL https://github.com/katriyda/cloudnest/releases/latest/download/instal
 
 ```bash
 curl -fsSL https://github.com/katriyda/cloudnest/releases/latest/download/install.sh | \
-  sudo env CLOUDNEST_VERSION=2.0.0 bash
+  sudo env CLOUDNEST_VERSION='<版本号>' bash
 ```
+
+`<版本号>` 取 Releases 页面上的版本（与 `Cargo.toml` 的 `version` 一致）。
 
 脚本会自动选择 `cloudnest-linux-x86_64.tar.gz` 或 `cloudnest-linux-aarch64.tar.gz`，并校验 SHA256。
 
@@ -219,7 +221,7 @@ sudo journalctl -u cloudnest.service -n 100 --no-pager
 ```bash
 sudo /opt/cloudnest/cloudnest backup --output /var/backups/cloudnest-$(date +%F-%H%M)
 curl -fsSL https://github.com/katriyda/cloudnest/releases/latest/download/install.sh | \
-  sudo env CLOUDNEST_VERSION=2.0.0 bash
+  sudo env CLOUDNEST_VERSION='<版本号>' bash
 ```
 
 也可以使用 CLI：

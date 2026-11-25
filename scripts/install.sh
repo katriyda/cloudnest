@@ -10,7 +10,7 @@
 #   sudo bash ./install.sh
 #
 # 环境变量：
-#   CLOUDNEST_VERSION   指定版本号（2.0.0 或 v2.0.0），默认 latest
+#   CLOUDNEST_VERSION   指定版本号（如 1.2.3 或 v1.2.3），默认 latest
 #   CLOUDNEST_REPO      覆盖 GitHub 仓库，默认 katriyda/cloudnest
 #
 # 安装位置：
@@ -67,7 +67,7 @@ CloudNest 安装脚本
 用法：sudo bash install.sh [选项]
 
 选项：
-  --version <版本>   指定版本，如 2.0.0（默认 latest）
+  --version <版本>   指定版本，如 1.2.3（默认 latest）
   --no-start         只安装并 enable 服务，不立即启动
   -h, --help         显示本帮助
 
@@ -141,7 +141,7 @@ normalize_version() {
         v*) VERSION="$(printf '%s' "$VERSION" | cut -c2-)" ;;
     esac
     if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-        die "版本号格式不正确：$VERSION（应形如 2.0.0）"
+        die "版本号格式不正确：$VERSION（应形如 1.2.3）"
     fi
 }
 
