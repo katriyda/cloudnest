@@ -1,5 +1,7 @@
 name: CI
 
+# 每次 push 到 main/master 时执行：代码格式、Clippy、测试与安装脚本检查
+
 on:
   push:
     branches:
