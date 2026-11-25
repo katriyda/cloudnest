@@ -1,5 +1,7 @@
 # CloudNest
 
+![CI](https://github.com/katriyda/cloudnest/actions/workflows/ci.yml/badge.svg) ![Release](https://img.shields.io/github/v/release/katriyda/=release)
+
 CloudNest 是一个轻量、可靠的个人云盘：单个静态二进制 + SQLite，提供 Web 文件管理、分享链接、多用户与配额管理，适合部署在家庭服务器、NAS 或小型 VPS 上自用。
 
 - 项目主页 / 仓库：<https://github.com/katriyda/cloudnest>
