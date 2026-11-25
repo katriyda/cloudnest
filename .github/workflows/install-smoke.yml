@@ -27,7 +27,8 @@ jobs:
       - name: 校验安装结果
         run: |
           set -euo pipefail
-          unit=$(ls /etc/systemd/system/*.service | head -n 1)
+          # 取最近写入的 unit，避免误选系统自带服务（如 chrony）
+          unit=$(ls -t /etc/systemd/system/*.service | head -n 1)
           echo "unit: $unit"
           cat "$unit"
           bin=$(sed -n 's/^ExecStart=//p' "$unit" | cut -d' ' -f1)
@@ -57,6 +58,10 @@ jobs:
       - name: 清理
         if: always()
         run: |
-          unit=$(ls /etc/systemd/system/*.service 2>/dev/null | head -n 1)
-          if [ -n "$unit" ]; then sudo systemctl disable --now "$(basename "$unit")" || true; fi
-          sudo rm -f /etc/systemd/system/*.service /opt/*/* || true
+          unit=$(ls -t /etc/systemd/system/*.service 2>/dev/null | head -n 1)
+          if [ -n "$unit" ]; then
+            sudo systemctl disable --now "$(basename "$unit")" || true
+            sudo rm -f "$unit"
+          fi
+          sudo rm -rf /opt/* /etc/*/config.toml /var/lib/* || true
+          sudo systemctl daemon-reload || true
