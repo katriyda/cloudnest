@@ -21,8 +21,14 @@ jobs:
           echo "repo: $repo"
           curl -fsSL "https://github.com/$repo/releases/latest/download/install.sh" -o /tmp/install.sh
           head -n 4 /tmp/install.sh
+          if grep -q $'\r' /tmp/install.sh; then
+            echo "::error::发布的 install.sh 含 CRLF 行尾"
+            exit 1
+          fi
+          bash -n /tmp/install.sh
           chmod +x /tmp/install.sh
-          sudo bash /tmp/install.sh --no-start
+          # 直接执行以覆盖 shebang 场景，而不是只测 bash /tmp/install.sh
+          sudo /tmp/install.sh --no-start
 
       - name: 校验安装结果
         run: |

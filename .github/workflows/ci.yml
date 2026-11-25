@@ -41,6 +41,11 @@ jobs:
 
       - name: 安装脚本检查
         run: |
+          set -euo pipefail
+          if grep -q $'\r' scripts/install.sh; then
+            echo "::error::scripts/install.sh 含 CRLF 行尾；请保持 LF，否则 bash 执行会报 pipefail/\$'\\r' 错误"
+            exit 1
+          fi
           bash -n scripts/install.sh
           bash scripts/install.sh --help >/dev/null
           sudo apt-get update

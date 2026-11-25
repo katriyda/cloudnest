@@ -91,6 +91,13 @@ jobs:
           fi
           mkdir -p "dist/$pkg"
           cp "$binary" "dist/$pkg/cloudnest"
+          # Windows 工作区可能把 CRLF 带入脚本；发布前强制归一化并校验，
+          # 否则直接执行会报 pipefail 无效或 $'\r': command not found。
+          sed -i 's/\r$//' scripts/install.sh
+          if grep -q $'\r' scripts/install.sh; then
+            echo "::error::scripts/install.sh 含 CRLF 行尾"
+            exit 1
+          fi
           cp scripts/install.sh packaging/cloudnest.service packaging/config.toml.example README.md LICENSE THIRD_PARTY_NOTICES.md "dist/$pkg/"
           cp -r docs "dist/$pkg/"
           chmod 0755 "dist/$pkg/cloudnest" "dist/$pkg/install.sh"
@@ -137,6 +144,12 @@ jobs:
       - name: 准备独立安装脚本
         run: |
           set -euo pipefail
+          sed -i 's/\r$//' scripts/install.sh
+          if grep -q $'\r' scripts/install.sh; then
+            echo "::error::scripts/install.sh 含 CRLF 行尾"
+            exit 1
+          fi
+          bash -n scripts/install.sh
           cp scripts/install.sh dist/install.sh
           chmod 0755 dist/install.sh
 
@@ -152,3 +165,21 @@ jobs:
             dist/cloudnest-linux-aarch64.tar.gz.sha256
             dist/SHA256SUMS
             dist/install.sh
+
+      - name: 校验已发布的 install.sh 资产
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5; do
+            if curl -fsSL --retry 3 "https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/install.sh" -o /tmp/released-install.sh; then
+              break
+            fi
+            echo "资产尚未可下载，稍后重试（$attempt/5）"
+            sleep 5
+          done
+          test -s /tmp/released-install.sh
+          if grep -q $'\r' /tmp/released-install.sh; then
+            echo "::error::已发布的 install.sh 含 CRLF 行尾"
+            exit 1
+          fi
+          bash -n /tmp/released-install.sh
+          sha256sum /tmp/released-install.sh
