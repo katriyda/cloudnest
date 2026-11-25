@@ -42,7 +42,7 @@
         <tbody>
           {% for user in page.users %}
           <tr>
-            <td>
+            <td data-label="用户">
               <div class="user-cell">
                 <span class="avatar avatar-small">{{ user.initial }}</span>
                 <span>
@@ -51,7 +51,7 @@
                 </span>
               </div>
             </td>
-            <td>
+            <td data-label="存储">
               <div class="quota-cell">
                 <span>{{ user.used_text }} / {% if user.quota_unlimited %}不限{% else %}{{ user.quota_text }}{% endif %}</span>
                 {% if !user.quota_unlimited %}
@@ -59,10 +59,10 @@
                 {% endif %}
               </div>
             </td>
-            <td class="muted">{{ user.file_count }}</td>
-            <td class="muted">{{ user.created_text }}</td>
-            <td>{% if user.disabled %}<span class="badge badge-muted">已禁用</span>{% else %}<span class="badge badge-ok">正常</span>{% endif %}</td>
-            <td>
+            <td class="muted" data-label="文件">{{ user.file_count }}</td>
+            <td class="muted" data-label="创建">{{ user.created_text }}</td>
+            <td data-label="状态">{% if user.disabled %}<span class="badge badge-muted">已禁用</span>{% else %}<span class="badge badge-ok">正常</span>{% endif %}</td>
+            <td data-label="操作">
               <div class="row-actions">
                 <form method="post" action="/admin/users/quota" class="inline-form quota-form">
                   <input type="hidden" name="csrf" value="{{ page.common.csrf }}">

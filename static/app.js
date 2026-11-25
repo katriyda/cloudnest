@@ -27,18 +27,19 @@
 
   // Sidebar
   const sidebar = $('#sidebar');
-  $$('[data-sidebar-open]').forEach((btn) => btn.addEventListener('click', () => {
-    if (sidebar) sidebar.classList.add('is-open');
-    document.body.classList.add('sidebar-open');
-  }));
-  $$('[data-sidebar-close]').forEach((el) => el.addEventListener('click', () => {
-    if (sidebar) sidebar.classList.remove('is-open');
-    document.body.classList.remove('sidebar-open');
-  }));
-  $$('.nav-link').forEach((link) => link.addEventListener('click', () => {
-    if (sidebar) sidebar.classList.remove('is-open');
-    document.body.classList.remove('sidebar-open');
-  }));
+  function setSidebar(open) {
+    if (sidebar) {
+      sidebar.classList.toggle('is-open', open);
+      $$('[data-sidebar-open]').forEach((btn) => btn.setAttribute('aria-expanded', open ? 'true' : 'false'));
+    }
+    document.body.classList.toggle('sidebar-open', open);
+  }
+  $$('[data-sidebar-open]').forEach((btn) => btn.addEventListener('click', () => setSidebar(true)));
+  $$('[data-sidebar-close]').forEach((el) => el.addEventListener('click', () => setSidebar(false)));
+  $$('.nav-link').forEach((link) => link.addEventListener('click', () => setSidebar(false)));
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') setSidebar(false);
+  });
 
   // Flash dismiss
   $$('[data-dismiss]').forEach((btn) => btn.addEventListener('click', () => {
@@ -63,18 +64,27 @@
 
   // Modal handling
   const modal = $('#modal');
+  let modalReturnFocus = null;
   function openModal() {
     if (!modal) return;
+    if (!modal.classList.contains('is-open')) modalReturnFocus = document.activeElement;
     modal.classList.add('is-open');
     document.body.style.overflow = 'hidden';
-    const target = modal.querySelector('input:not([type="hidden"]):not([type="password"]), select, textarea, input[type="password"]');
+    const target = modal.querySelector('input:not([type="hidden"]), select, textarea');
     if (target) setTimeout(() => target.focus(), 20);
+    else setTimeout(() => { const close = modal.querySelector('[data-modal-close]'); if (close) close.focus(); }, 20);
   }
   function closeModal() {
     if (!modal) return;
+    const wasOpen = modal.classList.contains('is-open');
     modal.classList.remove('is-open');
     modal.innerHTML = '';
     document.body.style.overflow = '';
+    if (wasOpen && modalReturnFocus && typeof modalReturnFocus.focus === 'function') {
+      const element = modalReturnFocus;
+      modalReturnFocus = null;
+      setTimeout(() => element.focus(), 20);
+    }
   }
   if (modal) {
     modal.addEventListener('click', (event) => {

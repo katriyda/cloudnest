@@ -31,19 +31,19 @@
       <button class="icon-btn rail-close" type="button" data-sidebar-close aria-label="关闭导航">{% include "icons/x.svg" %}</button>
     </div>
     <nav class="rail-nav" aria-label="主导航">
-      <a class="nav-link{% if page.common.active == "files" %} is-active{% endif %}" href="/files">
+      <a class="nav-link{% if page.common.active == "files" %} is-active{% endif %}" href="/files"{% if page.common.active == "files" %} aria-current="page"{% endif %}>
         <span class="nav-icon">{% include "icons/folder.svg" %}</span><span>我的文件</span>
       </a>
-      <a class="nav-link{% if page.common.active == "shares" %} is-active{% endif %}" href="/shares">
+      <a class="nav-link{% if page.common.active == "shares" %} is-active{% endif %}" href="/shares"{% if page.common.active == "shares" %} aria-current="page"{% endif %}>
         <span class="nav-icon">{% include "icons/link.svg" %}</span><span>分享链接</span>
       </a>
-      <a class="nav-link{% if page.common.active == "trash" %} is-active{% endif %}" href="/trash">
+      <a class="nav-link{% if page.common.active == "trash" %} is-active{% endif %}" href="/trash"{% if page.common.active == "trash" %} aria-current="page"{% endif %}>
         <span class="nav-icon">{% include "icons/trash.svg" %}</span><span>回收站</span>
         {% if page.common.trash_count > 0 %}<span class="nav-badge">{{ page.common.trash_count }}</span>{% endif %}
       </a>
       {% if page.common.is_admin %}
       <span class="nav-divider"></span>
-      <a class="nav-link{% if page.common.active == "admin" %} is-active{% endif %}" href="/admin">
+      <a class="nav-link{% if page.common.active == "admin" %} is-active{% endif %}" href="/admin"{% if page.common.active == "admin" %} aria-current="page"{% endif %}>
         <span class="nav-icon">{% include "icons/settings.svg" %}</span><span>用户与存储</span>
       </a>
       {% endif %}
@@ -75,7 +75,7 @@
 
   <main class="main">
     <header class="topbar">
-      <button class="icon-btn menu-btn" type="button" data-sidebar-open aria-label="打开导航">{% include "icons/menu.svg" %}</button>
+      <button class="icon-btn menu-btn" type="button" data-sidebar-open aria-label="打开导航" aria-controls="sidebar" aria-expanded="false">{% include "icons/menu.svg" %}</button>
       <form class="top-search" action="/files" method="get" role="search">
         <span class="search-icon">{% include "icons/search.svg" %}</span>
         <input type="search" name="q" placeholder="搜索文件" aria-label="搜索文件" autocomplete="off">

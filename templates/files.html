@@ -17,37 +17,41 @@
       {% endif %}
     </nav>
     <div class="workspace-tools">
-      <div class="sort-links">
-        <span class="sort-label">排序</span>
-        <a class="sort-link{% if page.sort == "name" %} is-active{% endif %}" href="{{ page.sort_name_href }}"
-          hx-get="{{ page.sort_name_href }}" hx-target="#files-pane" hx-select="#files-pane" hx-swap="outerHTML" hx-push-url="true">名称{% if page.sort == "name" %} {{ page.dir_label }}{% endif %}</a>
-        <a class="sort-link{% if page.sort == "size" %} is-active{% endif %}" href="{{ page.sort_size_href }}"
-          hx-get="{{ page.sort_size_href }}" hx-target="#files-pane" hx-select="#files-pane" hx-swap="outerHTML" hx-push-url="true">大小{% if page.sort == "size" %} {{ page.dir_label }}{% endif %}</a>
-        <a class="sort-link{% if page.sort == "modified" %} is-active{% endif %}" href="{{ page.sort_modified_href }}"
-          hx-get="{{ page.sort_modified_href }}" hx-target="#files-pane" hx-select="#files-pane" hx-swap="outerHTML" hx-push-url="true">修改时间{% if page.sort == "modified" %} {{ page.dir_label }}{% endif %}</a>
+      <div class="tool-group">
+        <div class="sort-links">
+          <span class="sort-label">排序</span>
+          <a class="sort-link{% if page.sort == "name" %} is-active{% endif %}" href="{{ page.sort_name_href }}"
+            hx-get="{{ page.sort_name_href }}" hx-target="#files-pane" hx-select="#files-pane" hx-swap="outerHTML" hx-push-url="true">名称{% if page.sort == "name" %} {{ page.dir_label }}{% endif %}</a>
+          <a class="sort-link{% if page.sort == "size" %} is-active{% endif %}" href="{{ page.sort_size_href }}"
+            hx-get="{{ page.sort_size_href }}" hx-target="#files-pane" hx-select="#files-pane" hx-swap="outerHTML" hx-push-url="true">大小{% if page.sort == "size" %} {{ page.dir_label }}{% endif %}</a>
+          <a class="sort-link{% if page.sort == "modified" %} is-active{% endif %}" href="{{ page.sort_modified_href }}"
+            hx-get="{{ page.sort_modified_href }}" hx-target="#files-pane" hx-select="#files-pane" hx-swap="outerHTML" hx-push-url="true">修改时间{% if page.sort == "modified" %} {{ page.dir_label }}{% endif %}</a>
+        </div>
+        <div class="view-toggle" aria-label="视图切换">
+          <a class="icon-btn{% if page.view == "list" %} is-active{% endif %}" href="{{ page.view_list_href }}" title="列表视图" aria-label="列表视图"
+            hx-get="{{ page.view_list_href }}" hx-target="#files-pane" hx-select="#files-pane" hx-swap="outerHTML" hx-push-url="true">{% include "icons/list.svg" %}</a>
+          <a class="icon-btn{% if page.view == "grid" %} is-active{% endif %}" href="{{ page.view_grid_href }}" title="网格视图" aria-label="网格视图"
+            hx-get="{{ page.view_grid_href }}" hx-target="#files-pane" hx-select="#files-pane" hx-swap="outerHTML" hx-push-url="true">{% include "icons/grid.svg" %}</a>
+        </div>
       </div>
-      <div class="view-toggle" aria-label="视图切换">
-        <a class="icon-btn{% if page.view == "list" %} is-active{% endif %}" href="{{ page.view_list_href }}" title="列表视图" aria-label="列表视图"
-          hx-get="{{ page.view_list_href }}" hx-target="#files-pane" hx-select="#files-pane" hx-swap="outerHTML" hx-push-url="true">{% include "icons/list.svg" %}</a>
-        <a class="icon-btn{% if page.view == "grid" %} is-active{% endif %}" href="{{ page.view_grid_href }}" title="网格视图" aria-label="网格视图"
-          hx-get="{{ page.view_grid_href }}" hx-target="#files-pane" hx-select="#files-pane" hx-swap="outerHTML" hx-push-url="true">{% include "icons/grid.svg" %}</a>
+      <div class="tool-group tool-actions">
+        <button class="btn btn-quiet btn-small" type="button"
+          hx-get="{{ page.folder_dialog_url }}" hx-target="#modal" hx-swap="innerHTML">
+          <span class="btn-icon">{% include "icons/plus.svg" %}</span>新建文件夹
+        </button>
+        <form method="post" action="/files/upload" enctype="multipart/form-data" class="inline-form" id="upload-form">
+          <input type="hidden" name="csrf" value="{{ page.common.csrf }}">
+          <input type="hidden" name="parent_id" value="{{ page.parent_id }}">
+          <input type="hidden" name="path" value="">
+          <label class="btn btn-primary btn-small">
+            <span class="btn-icon">{% include "icons/upload.svg" %}</span>上传文件
+            <input type="file" name="files" multiple class="visually-hidden" data-file-input>
+          </label>
+          <button class="btn btn-quiet btn-small btn-icon-only" type="button" data-pick-folder title="上传文件夹" aria-label="上传文件夹">{% include "icons/folder-plus.svg" %}</button>
+          <input type="file" data-folder-input webkitdirectory directory multiple class="visually-hidden">
+          <noscript><button class="btn btn-small" type="submit">开始上传</button></noscript>
+        </form>
       </div>
-      <button class="btn btn-quiet btn-small" type="button"
-        hx-get="{{ page.folder_dialog_url }}" hx-target="#modal" hx-swap="innerHTML">
-        <span class="btn-icon">{% include "icons/plus.svg" %}</span>新建文件夹
-      </button>
-      <form method="post" action="/files/upload" enctype="multipart/form-data" class="inline-form" id="upload-form">
-        <input type="hidden" name="csrf" value="{{ page.common.csrf }}">
-        <input type="hidden" name="parent_id" value="{{ page.parent_id }}">
-        <input type="hidden" name="path" value="">
-        <label class="btn btn-primary btn-small">
-          <span class="btn-icon">{% include "icons/upload.svg" %}</span>上传文件
-          <input type="file" name="files" multiple class="visually-hidden" data-file-input>
-        </label>
-        <button class="btn btn-quiet btn-small btn-icon-only" type="button" data-pick-folder title="上传文件夹" aria-label="上传文件夹">{% include "icons/folder-plus.svg" %}</button>
-        <input type="file" data-folder-input webkitdirectory directory multiple class="visually-hidden">
-        <noscript><button class="btn btn-small" type="submit">开始上传</button></noscript>
-      </form>
     </div>
   </div>
 
@@ -74,7 +78,7 @@
         <a class="file-card-main" href="{% if entry.is_dir %}/files?path={{ entry.id }}{% else %}/files/{{ entry.id }}/preview{% endif %}">
           <span class="file-icon{% if entry.is_dir %} is-dir{% endif %}">{% if entry.is_dir %}{% include "icons/folder.svg" %}{% else %}<span class="ext">{{ entry.ext_label }}</span>{% endif %}</span>
           <span class="file-card-name" title="{{ entry.name }}">{{ entry.name }}</span>
-          <span class="file-card-meta">{{ entry.size_text }} · {{ entry.updated_text }}</span>
+          <span class="file-card-meta"><span>{% if entry.is_dir %}文件夹{% else %}{{ entry.size_text }}{% endif %}</span><span>{{ entry.updated_text }}</span></span>
         </a>
         <div class="card-actions">
           {% if !entry.is_dir %}<a class="icon-btn" href="/files/{{ entry.id }}/download" title="下载" aria-label="下载">{% include "icons/download.svg" %}</a>{% endif %}

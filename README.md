@@ -26,14 +26,17 @@ CloudNest 是一个轻量、可靠的个人云盘：单个静态二进制 + SQLi
 ### 文件管理
 ![文件列表](docs/screenshots/files-light.png)
 
+### 网格视图
+![网格视图](docs/screenshots/files-grid.png)
+
 ### 分享链接
 ![分享链接](docs/screenshots/shares-light.png)
 
 ### 访客分享页
 ![访客分享页](docs/screenshots/share-public.png)
 
-### 用户与配额
-![用户与配额](docs/screenshots/admin-light.png)
+### 用户与存储
+![用户与存储](docs/screenshots/admin-light.png)
 
 ### 登录页
 ![登录页](docs/screenshots/login.png)
