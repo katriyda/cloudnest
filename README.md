@@ -11,13 +11,14 @@ CloudNest 是一个轻量、可靠的个人云盘：单个静态二进制 + SQLi
 ## 功能
 
 - **单二进制部署**：Rust 编写的服务端，无外部运行时依赖；Linux x86_64 / aarch64 静态构建。
-- **文件管理**：上传、下载、新建文件夹、重命名、移动、删除；支持列表/网格视图、按名称/大小/时间排序与搜索。
+- **文件管理**：上传、下载、新建文件夹、重命名、移动、删除；大文件自动分片上传并支持断点续传；支持列表/网格视图、按名称/大小/时间排序与搜索。
 - **回收站**：删除的文件进入回收站，可查看并恢复，避免误删。
 - **在线预览**：图片、视频、音频、文本等常见类型可直接预览。
 - **分享链接**：为文件或文件夹创建公开分享链接，可设置访问密码、有效期与下载次数限制。
 - **多用户与配额**：首次启动完成管理员初始化；管理员可管理用户与配额，用户可查看自己的空间用量。
 - **安全基础**：Argon2 密码哈希、HttpOnly 会话 Cookie、CSRF 防护；HTTPS 场景可强制 Secure Cookie。
 - **运维友好**：配置文件 + 环境变量覆盖、systemd 服务与日志、CLI 备份/恢复、SHA256 校验的发布产物。
+- **网页设置与在线更新**：管理员可在「站点设置」直接修改可调配置（保存后大多立即生效，无需重启），并在「版本更新」中检查、一键安装新版本，程序自动重启。
 
 > 说明：功能说明与当前实现保持一致；如有差异以实际版本为准。
 
@@ -112,11 +113,24 @@ session_days = 30
 | `data_dir` | `/var/lib/cloudnest` | 数据目录，存放 SQLite 数据库与用户文件。 |
 | `public_url` | 空 | 对外访问地址，用于生成绝对链接与 Cookie 作用域。 |
 | `secure_cookies` | `false` | 仅通过 HTTPS 发送会话 Cookie；`public_url` 为 https 时自动启用。 |
-| `max_upload_size_mb` | `2048` | 单次请求体上限（MiB），反向代理侧也需放宽。 |
+| `max_upload_size_mb` | `2048` | 源站单次请求体上限（MiB）；超过 16 MiB 的文件会自动走分片上传，不受此请求体上限约束。 |
 | `default_quota_gb` | `10` | 新用户默认配额（GiB），0 表示不限。 |
 | `session_days` | `30` | 登录会话有效期（天，1-365）。 |
 
-环境变量 `CLOUDNEST_LISTEN`、`CLOUDNEST_DATA_DIR`、`CLOUDNEST_PUBLIC_URL` 可覆盖对应配置项。
+环境变量 `CLOUDNEST_LISTEN`、`CLOUDNEST_DATA_DIR`、`CLOUDNEST_PUBLIC_URL` 可覆盖对应配置项，优先级高于配置文件。
+
+### 网页设置（热更新）
+
+管理员登录后访问「站点设置」（`/admin/settings`）即可修改 `public_url`、`secure_cookies`、`max_upload_size_mb`、`default_quota_gb` 与 `session_days`，保存后写入配置文件并立即生效：
+
+| 字段 | 是否立即生效 |
+| --- | --- |
+| `public_url`、`secure_cookies`、`session_days` | 立即生效（影响新会话与新生成的分享链接） |
+| `max_upload_size_mb`、`default_quota_gb` | 立即生效（影响之后的请求与新建账户） |
+| `listen`、`data_dir` | 保存到文件，需重启服务后生效 |
+
+> 网页保存会重写 `config.toml`，手工注释不会保留。被 `CLOUDNEST_*` 环境变量覆盖的字段以环境变量为准，页面会给出提示。
+> 安装脚本已为服务用户开放配置目录与程序目录的写权限；如果自行加固了权限，网页保存/更新会提示无法写入，此时改回 CLI 或 root 操作即可。
 
 完整示例见 [packaging/config.toml.example](packaging/config.toml.example)。
 
@@ -164,6 +178,10 @@ server {
     }
 }
 ```
+
+### Cloudflare
+
+Cloudflare 免费版把单个请求体限制为 100 MB，该限制在 Cloudflare 边缘生效，源站配置的 `max_upload_size_mb = 2048` 无法放宽它。CloudNest 前端对超过 16 MiB 的文件会自动改用分片上传：每片 4 MiB，逐片提交并支持断点续传，因此 100 MB 以上的文件无需升级套餐也能上传。分片接口同样要求登录会话、CSRF 校验与配额检查，单个文件的总大小受用户配额限制。
 
 ## systemd 管理
 
@@ -232,7 +250,9 @@ sudo /opt/cloudnest/cloudnest backup --output /var/backups/cloudnest-$(date +%F)
 curl -fsSL https://github.com/katriyda/cloudnest/releases/latest/download/install.sh | sudo bash
 ```
 
-也可执行 `cloudnest update`。升级后如新增配置项，请对照 [packaging/config.toml.example](packaging/config.toml.example) 检查 `/etc/cloudnest/config.toml`。
+也可执行 `cloudnest update`。使用安装脚本部署的 Linux 实例还支持网页一键更新：管理员在「站点设置 → 版本更新」中先检查版本，再点击「立即更新」；程序会备份数据库、校验 SHA256、替换二进制并原地重启，更新期间连接会短暂中断。非 Linux 运行方式只能检查版本，请使用发布包或 CLI 升级。
+
+升级后如新增配置项，请对照 [packaging/config.toml.example](packaging/config.toml.example) 检查 `/etc/cloudnest/config.toml`。
 
 ## 卸载
 

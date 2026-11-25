@@ -6,5 +6,6 @@ pub mod error;
 pub mod routes;
 pub mod state;
 pub mod storage;
+pub mod update;
 pub mod util;
 pub mod views;

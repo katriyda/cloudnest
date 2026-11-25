@@ -84,7 +84,8 @@ async fn load_share(state: &AppState, token: &str) -> Result<ShareRecord, AppErr
 }
 
 fn share_url(state: &AppState, headers: &HeaderMap, token: &str) -> String {
-    if let Some(public_url) = &state.config.public_url {
+    let config = state.config();
+    if let Some(public_url) = &config.public_url {
         return format!("{public_url}/s/{token}");
     }
     let host = headers
@@ -645,7 +646,7 @@ pub async fn unlock(
         &value,
         UNLOCK_LIFETIME,
         true,
-        state.config.secure_cookies,
+        state.config().secure_cookies,
         &format!("/s/{token}"),
     );
     let cookie = HeaderValue::from_str(&cookie)

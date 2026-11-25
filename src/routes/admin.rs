@@ -128,7 +128,7 @@ pub async fn index(
         total_files,
         total_size_text: util::human_size(total_size),
         total_quota_text: util::human_size(total_quota),
-        default_quota_gb: state.config.default_quota_gb,
+        default_quota_gb: state.config().default_quota_gb,
     };
     super::render(&AdminTemplate { page }, StatusCode::OK).await
 }
@@ -144,7 +144,7 @@ pub async fn create_user(
     util::password_valid(&form.password)?;
     let quota_gb = form
         .quota_gb
-        .unwrap_or(state.config.default_quota_gb)
+        .unwrap_or(state.config().default_quota_gb)
         .max(0);
     let quota_bytes = quota_gb.saturating_mul(util::GIB);
     let hash = auth::hash_password(form.password).await?;

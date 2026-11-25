@@ -78,10 +78,16 @@ systemd 单元 [packaging/cloudnest.service](../packaging/cloudnest.service) 默
 
 | 路径 | 权限 | 属主 |
 | --- | --- | --- |
-| `/opt/cloudnest` | 0755 | root:root |
-| `/etc/cloudnest` | 0750 | root:cloudnest |
+| `/opt/cloudnest` | 0770 | root:cloudnest |
+| `/etc/cloudnest` | 0770 | root:cloudnest |
 | `/etc/cloudnest/config.toml` | 0640 | root:cloudnest |
 | `/var/lib/cloudnest` | 0750 | cloudnest:cloudnest |
+
+为了支持网页修改配置与一键更新，systemd 单元在 `ReadWritePaths` 中额外放行了 `/etc/cloudnest` 与 `/opt/cloudnest`。这意味着服务账号可以写回自己的配置文件，并替换自己的可执行文件；这是网页自助运维所需的信任边界，仍远小于 root：
+
+- 配置保存只改 `/etc/cloudnest/config.toml`，不会执行任意命令；
+- 在线更新只能从固定的 GitHub Releases 下载、强制校验 SHA256 后替换程序，并原地重启进程；
+- 若不需要网页设置/更新，可执行 `chmod 0750 /etc/cloudnest /opt/cloudnest` 收回写权限，网页操作会明确报错，CLI/root 操作不受影响。
 
 注意：修改 `data_dir` 时必须同步调整 systemd 的 `ReadWritePaths` 与目录属主，否则服务无法写入；详见 [docs/DEPLOY.md](DEPLOY.md#4-配置)。
 
@@ -100,7 +106,8 @@ systemd 单元 [packaging/cloudnest.service](../packaging/cloudnest.service) 默
 - 产物为 musl 静态二进制，减少运行时依赖与动态库攻击面；
 - 每位发布包都提供逐文件 `.sha256`，同时发布 `SHA256SUMS`；
 - 安装脚本在解压前强制校验 SHA256，并拒绝包含绝对路径或 `..` 的归档；
-- 发布包与校验文件通过 GitHub HTTPS 分发。
+- 发布包与校验文件通过 GitHub HTTPS 分发；
+- 网页一键更新与 CLI 更新使用相同的发布资产与 SHA256 校验流程，更新前自动备份数据库；只有管理员会话且通过 CSRF 校验才能触发，安装包始终从官方仓库下载。
 
 建议：
 
@@ -120,7 +127,7 @@ systemd 单元 [packaging/cloudnest.service](../packaging/cloudnest.service) 默
 
 ## 9. 资源限制与滥用防护
 
-- `max_upload_size_mb` 限制单次请求体大小，防止单个请求耗尽内存/磁盘；
+- `max_upload_size_mb` 限制单个非分片请求体大小，防止单个请求耗尽内存/磁盘；大文件改走每片 4 MiB 的分片通道，分片同样校验登录会话、CSRF、偏移量与配额；
 - `default_quota_gb` 为新用户默认配额，管理员可为单个用户调整；配额在写入前校验；
 - 分享链接可设置有效期与下载次数，降低公开链接被滥用的影响；
 - 反向代理侧应设置请求体限制、超时与速率限制，作为应用层限制的补充。
@@ -137,6 +144,7 @@ systemd 单元 [packaging/cloudnest.service](../packaging/cloudnest.service) 默
 - [ ] systemd 单元保持默认加固项，不随意放宽
 - [ ] 备份目录权限 0700，备份加密并异地保存
 - [ ] 保持版本更新；升级前备份并阅读 Release Notes
+- [ ] 确认 `/etc/cloudnest`、`/opt/cloudnest` 的写权限仅授予服务用户组；不需要网页运维时收回
 - [ ] 监控磁盘、内存、日志与异常登录
 - [ ] 限制管理入口的网络来源
 

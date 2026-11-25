@@ -46,6 +46,9 @@
       <a class="nav-link{% if page.common.active == "admin" %} is-active{% endif %}" href="/admin"{% if page.common.active == "admin" %} aria-current="page"{% endif %}>
         <span class="nav-icon">{% include "icons/settings.svg" %}</span><span>用户与存储</span>
       </a>
+      <a class="nav-link{% if page.common.active == "settings" %} is-active{% endif %}" href="/admin/settings"{% if page.common.active == "settings" %} aria-current="page"{% endif %}>
+        <span class="nav-icon">{% include "icons/settings.svg" %}</span><span>站点设置</span>
+      </a>
       {% endif %}
     </nav>
     <div class="rail-spacer"></div>

@@ -89,11 +89,12 @@ pub async fn login_submit(
         }
         Some((id, hash, _)) => {
             if auth::verify_password(form.password.clone(), hash).await? {
+                let config = state.config();
                 let (_, _, cookie) = auth::create_session(
                     &state.pool,
                     id,
-                    state.config.secure_cookies,
-                    state.config.session_seconds(),
+                    config.secure_cookies,
+                    config.session_seconds(),
                 )
                 .await?;
                 tracing::info!("用户 {username} 登录成功");
@@ -177,11 +178,12 @@ pub async fn setup_submit(
             .await;
         }
     };
+    let config = state.config();
     let (_, _, cookie) = auth::create_session(
         &state.pool,
         user_id,
-        state.config.secure_cookies,
-        state.config.session_seconds(),
+        config.secure_cookies,
+        config.session_seconds(),
     )
     .await?;
     tracing::info!("初始化管理员账户 {username}");
@@ -202,7 +204,7 @@ pub async fn logout(
     auth::require_csrf(&user.0, &form.csrf)?;
     auth::destroy_session(&state.pool, &user.0.session_token).await?;
     let mut response = Redirect::to("/login?ok=已安全退出").into_response();
-    let cookie = auth::clear_session_cookie(state.config.secure_cookies);
+    let cookie = auth::clear_session_cookie(state.config().secure_cookies);
     if let Ok(value) = axum::http::HeaderValue::from_str(&cookie) {
         response
             .headers_mut()

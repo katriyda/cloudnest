@@ -276,9 +276,16 @@ ensure_user() {
 }
 
 install_layout() {
-    install -d -m 0755 -o root -g root "$INSTALL_DIR"
-    install -d -m 0750 -o root -g "$SERVICE_USER" "$CONFIG_DIR"
+    # 程序目录与配置目录对服务用户组可写：
+    # - 程序目录用于网页“版本更新”替换二进制；
+    # - 配置目录用于网页“站点设置”原子写回 config.toml。
+    # 目录属主仍为 root，仅服务用户组获得写权限。
+    install -d -m 0770 -o root -g "$SERVICE_USER" "$INSTALL_DIR"
+    install -d -m 0770 -o root -g "$SERVICE_USER" "$CONFIG_DIR"
     install -d -m 0750 -o "$SERVICE_USER" -g "$SERVICE_USER" "$DATA_DIR"
+    # 升级已有安装时同步补齐权限。
+    chown root:"$SERVICE_USER" "$INSTALL_DIR" "$CONFIG_DIR"
+    chmod 0770 "$INSTALL_DIR" "$CONFIG_DIR"
 }
 
 install_binary() {
@@ -288,11 +295,15 @@ install_binary() {
 
 install_config() {
     if [ -f "$CONFIG_FILE" ]; then
+        # 网页保存采用同目录临时文件 + 改名，服务用户需要对目录有写权限；
+        # 配置文件本身保持 root 属主、服务用户组可读。
+        chown root:"$SERVICE_USER" "$CONFIG_FILE"
+        chmod 0640 "$CONFIG_FILE"
         log "配置文件已存在，保留现有配置：$CONFIG_FILE"
         return 0
     fi
     install -m 0640 -o root -g "$SERVICE_USER" "$SOURCE_DIR/config.toml.example" "$CONFIG_FILE"
-    log "配置文件已创建：$CONFIG_FILE（请按需修改 public_url 后重启服务）"
+    log "配置文件已创建：$CONFIG_FILE（可在网页“站点设置”中修改，或直接编辑后重启服务）"
 }
 
 systemd_available() {
@@ -342,6 +353,8 @@ print_summary() {
     log "数据目录：$DATA_DIR"
     log "监听地址：$listen_hint"
     log "如对外提供服务，请编辑 config.toml 中的 public_url 与 secure_cookies 后执行：systemctl restart $SERVICE_NAME"
+    log "管理员登录后可在网页「站点设置」修改配置（大部分立即生效）"
+    log "管理员可在网页「版本更新」中检查并一键升级程序"
     log "查看状态：systemctl status $SERVICE_NAME"
     log "查看日志：journalctl -u $SERVICE_NAME -f"
 }

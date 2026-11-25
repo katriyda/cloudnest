@@ -398,4 +398,117 @@
       });
     }
   }
+  // 站点设置：在线检查与一键更新
+  const settingsData = pageData();
+  if (settingsData && settingsData.dataset.page === 'settings') {
+    const updatePanel = $('#update-panel');
+    const updateState = $('#update-state');
+    const checkBtn = $('#update-check');
+    const applyBtn = $('#update-apply');
+    const supported = !!(updatePanel && updatePanel.dataset.supported === 'true');
+    let latestVersion = null;
+    let working = false;
+
+    const setUpdateState = (text, kind) => {
+      if (!updateState) return;
+      updateState.textContent = text;
+      updateState.classList.toggle('is-error', kind === 'error');
+      updateState.classList.toggle('is-ok', kind === 'ok');
+    };
+    const readJson = async (response) => {
+      let data = null;
+      try { data = await response.json(); } catch (e) {}
+      if (!data) throw new Error(response.ok ? '服务器返回了无法识别的内容' : '请求没有完成，请刷新页面后重试');
+      return data;
+    };
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    async function checkForUpdate() {
+      if (working || !checkBtn) return;
+      working = true;
+      checkBtn.disabled = true;
+      if (applyBtn) applyBtn.hidden = true;
+      setUpdateState('正在检查最新版本…');
+      try {
+        const response = await fetch('/admin/update/check', {
+          headers: { Accept: 'application/json' },
+          cache: 'no-store'
+        });
+        const data = await readJson(response);
+        latestVersion = data.latest;
+        if (data.has_update) {
+          setUpdateState('发现新版本 ' + data.latest + '（当前 ' + data.current + '）。');
+          if (supported && applyBtn) applyBtn.hidden = false;
+        } else {
+          setUpdateState('已经是最新版本（' + data.current + '）。', 'ok');
+        }
+      } catch (err) {
+        setUpdateState((err && err.message) || '检查更新失败，请稍后重试', 'error');
+      } finally {
+        working = false;
+        checkBtn.disabled = false;
+      }
+    }
+
+    async function applyUpdate() {
+      if (working || !latestVersion || !applyBtn) return;
+      if (!window.confirm('确定安装 ' + latestVersion + ' 吗？更新会替换程序并重启服务，期间连接会短暂中断。')) return;
+      working = true;
+      checkBtn.disabled = true;
+      applyBtn.disabled = true;
+      setUpdateState('正在下载并校验 ' + latestVersion + '…这可能需要几分钟。');
+      try {
+        const body = new URLSearchParams();
+        body.set('csrf', csrf());
+        const response = await fetch('/admin/update/apply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+          body
+        });
+        const data = await readJson(response);
+        if (!data.ok) {
+          setUpdateState(data.message || '更新没有完成', 'error');
+          working = false;
+          checkBtn.disabled = false;
+          applyBtn.disabled = false;
+          return;
+        }
+        setUpdateState(data.message || '更新已安装，等待服务重启…', 'ok');
+        await waitForVersion(data.version);
+      } catch (err) {
+        setUpdateState((err && err.message) || '更新没有完成，请查看服务日志', 'error');
+        working = false;
+        checkBtn.disabled = false;
+        applyBtn.disabled = false;
+      }
+    }
+
+    async function waitForVersion(expected) {
+      for (let attempt = 0; attempt < 90; attempt++) {
+        await sleep(1200);
+        try {
+          const response = await fetch('/api/version', { cache: 'no-store', headers: { Accept: 'application/json' } });
+          if (response.ok) {
+            const data = await response.json();
+            if (data.version === expected) {
+              setUpdateState('已更新到 ' + expected + '，页面即将刷新。', 'ok');
+              setTimeout(() => window.location.reload(), 900);
+              return;
+            }
+            setUpdateState('服务已恢复，正在等待新版本生效…');
+          }
+        } catch (e) {
+          setUpdateState('服务重启中…');
+        }
+      }
+      setUpdateState('尚未确认新版本启动，请刷新页面或查看服务日志。', 'error');
+      working = false;
+      checkBtn.disabled = false;
+      applyBtn.disabled = false;
+    }
+
+    if (checkBtn) checkBtn.addEventListener('click', checkForUpdate);
+    if (applyBtn) applyBtn.addEventListener('click', applyUpdate);
+  }
+
 })();

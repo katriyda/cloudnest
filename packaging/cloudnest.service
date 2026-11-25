@@ -25,7 +25,8 @@ PrivateTmp=true
 PrivateDevices=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/cloudnest
+# 数据目录之外，网页设置与在线更新还需要写回配置文件和程序文件。
+ReadWritePaths=/var/lib/cloudnest /etc/cloudnest /opt/cloudnest
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true

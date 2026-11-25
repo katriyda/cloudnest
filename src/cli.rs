@@ -1,8 +1,6 @@
 use crate::config::Config;
 use crate::state::AppState;
 use clap::{Parser, Subcommand};
-use serde::Deserialize;
-use sha2::{Digest, Sha256};
 use sqlx::sqlite::SqlitePoolOptions;
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -162,7 +160,7 @@ async fn serve(
         cfg.data_dir.display(),
         cfg.listen
     );
-    let state = AppState::new(cfg).await?;
+    let state = AppState::with_config_file(cfg, config_path).await?;
     let cleanup_state = state.clone();
     tokio::spawn(async move {
         let _ = crate::storage::cleanup_stale_uploads(
@@ -171,7 +169,7 @@ async fn serve(
         )
         .await;
     });
-    let listen = state.config.listen.clone();
+    let listen = state.config().listen.clone();
     let listener = tokio::net::TcpListener::bind(&listen)
         .await
         .map_err(|e| fail(format!("无法监听 {listen}: {e}")))?;
@@ -271,199 +269,35 @@ async fn status(config_path: PathBuf) -> CliResult<()> {
     Ok(())
 }
 
-#[derive(Deserialize)]
-struct ReleaseAsset {
-    name: String,
-    browser_download_url: String,
-}
-
-#[derive(Deserialize)]
-struct Release {
-    tag_name: String,
-    assets: Vec<ReleaseAsset>,
-}
-
-fn version_triplet(version: &str) -> Vec<u64> {
-    version
-        .trim_start_matches('v')
-        .split(['.', '-'])
-        .take(3)
-        .map(|part| part.parse::<u64>().unwrap_or(0))
-        .collect()
-}
-
-fn is_newer(latest: &str, current: &str) -> bool {
-    let a = version_triplet(latest);
-    let b = version_triplet(current);
-    for i in 0..3 {
-        let ai = a.get(i).copied().unwrap_or(0);
-        let bi = b.get(i).copied().unwrap_or(0);
-        if ai != bi {
-            return ai > bi;
-        }
-    }
-    false
-}
-
-fn target_arch() -> CliResult<&'static str> {
-    match std::env::consts::ARCH {
-        "x86_64" => Ok("x86_64"),
-        "aarch64" => Ok("aarch64"),
-        other => Err(fail(format!("不支持的 CPU 架构: {other}"))),
-    }
-}
-
 async fn update() -> CliResult<()> {
     if !cfg!(target_os = "linux") {
         return Err(fail("自动更新仅支持 Linux"));
     }
-    let arch = target_arch()?;
-    let asset_name = format!("cloudnest-linux-{arch}.tar.gz");
     println!("当前版本: {VERSION}");
-    let release: Release = ureq::get(&format!(
-        "https://api.github.com/repos/{REPO}/releases/latest"
-    ))
-    .header("User-Agent", "cloudnest-updater")
-    .header("Accept", "application/vnd.github+json")
-    .call()
-    .map_err(|e| fail(format!("检查更新失败: {e}")))?
-    .body_mut()
-    .read_json()
-    .map_err(|e| fail(format!("解析版本信息失败: {e}")))?;
+    let service = crate::update::UpdateService::new();
+    let release = service.latest().map_err(|e| fail(e.to_string()))?;
     println!("最新版本: {}", release.tag_name);
-    if !is_newer(&release.tag_name, VERSION) {
+    if !crate::update::is_newer(&release.tag_name, VERSION) {
         println!("已经是最新版本。");
         return Ok(());
     }
-    let archive = release
-        .assets
-        .iter()
-        .find(|asset| asset.name == asset_name)
-        .ok_or_else(|| fail(format!("最新版本中没有找到 {asset_name}")))?
-        .browser_download_url
-        .clone();
-    let checksum_url = release
-        .assets
-        .iter()
-        .find(|asset| asset.name == "SHA256SUMS")
-        .map(|asset| asset.browser_download_url.clone())
-        .or_else(|| {
-            release
-                .assets
-                .iter()
-                .find(|asset| asset.name == format!("{asset_name}.sha256"))
-                .map(|asset| asset.browser_download_url.clone())
-        })
-        .ok_or_else(|| fail("发布中缺少 SHA256 校验文件"))?;
-    let checksum_text = ureq::get(&checksum_url)
-        .header("User-Agent", "cloudnest-updater")
-        .call()
-        .map_err(|e| fail(format!("下载校验文件失败: {e}")))?
-        .body_mut()
-        .read_to_string()
-        .map_err(|e| fail(format!("读取校验文件失败: {e}")))?;
-    let expected = checksum_text
-        .lines()
-        .find_map(|line| {
-            let trimmed = line.trim();
-            let mut parts = trimmed.split_whitespace();
-            let hash = parts.next()?;
-            let name = parts.next()?.trim_start_matches('*');
-            if name == asset_name {
-                Some(hash.to_ascii_lowercase())
-            } else {
-                None
-            }
-        })
-        .ok_or_else(|| fail(format!("校验文件中没有 {asset_name}")))?;
-
+    let asset_name = crate::update::release_asset_name().map_err(|e| fail(e.to_string()))?;
     let temp = tempfile::TempDir::new().map_err(|e| fail(format!("创建临时目录失败: {e}")))?;
-    let archive_path = temp.path().join(&asset_name);
     println!("下载 {asset_name} …");
-    let bytes = ureq::get(&archive)
-        .header("User-Agent", "cloudnest-updater")
-        .call()
-        .map_err(|e| fail(format!("下载新版本失败: {e}")))?
-        .body_mut()
-        .read_to_vec()
-        .map_err(|e| fail(format!("读取下载内容失败: {e}")))?;
-    let actual = hex::encode(Sha256::digest(&bytes));
-    if actual != expected {
-        return Err(fail(format!(
-            "SHA256 校验失败：期望 {expected}，实际 {actual}"
-        )));
-    }
-    std::fs::write(&archive_path, &bytes).map_err(|e| fail(format!("写入临时文件失败: {e}")))?;
+    let staged =
+        crate::update::stage_release(&release, temp.path()).map_err(|e| fail(e.to_string()))?;
 
-    let new_exe = temp.path().join("cloudnest.new");
-    let mut found = false;
-    let file = std::fs::File::open(&archive_path)?;
-    let mut archive = tar::Archive::new(flate2::read::GzDecoder::new(file));
-    for entry in archive.entries()? {
-        let mut entry = entry?;
-        let path = entry.path()?;
-        if path.file_name().and_then(|n| n.to_str()) == Some("cloudnest")
-            && entry.header().entry_type().is_file()
-        {
-            entry
-                .unpack(&new_exe)
-                .map_err(|e| fail(format!("解压新版本失败: {e}")))?;
-            found = true;
-            break;
-        }
-    }
-    if !found {
-        return Err(fail("发布包中没有找到 cloudnest 可执行文件"));
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&new_exe, std::fs::Permissions::from_mode(0o755))?;
-    }
-
-    // Backup the database before touching the running installation.
+    // 替换程序前先备份数据库；失败则中止更新。
     let config = Config::load(&default_config_path())?;
-    if config.data_dir.join("cloudnest.db").exists() {
-        let backup_dir = config.data_dir.join("backups");
-        std::fs::create_dir_all(&backup_dir)?;
-        let backup_path = backup_dir.join(format!(
-            "pre-update-{}-{}.db",
-            VERSION,
-            chrono::Local::now().format("%Y%m%d%H%M%S")
-        ));
-        let escaped = backup_path
-            .to_string_lossy()
-            .replace('\\', "\\\\")
-            .replace('\'', "''");
-        let pool = SqlitePoolOptions::new()
-            .max_connections(1)
-            .connect_with(
-                sqlx::sqlite::SqliteConnectOptions::new()
-                    .filename(config.data_dir.join("cloudnest.db")),
-            )
-            .await?;
-        sqlx::query(sqlx::AssertSqlSafe(format!("VACUUM INTO '{escaped}'")))
-            .execute(&pool)
-            .await
-            .map_err(|e| fail(format!("更新前数据库备份失败: {e}")))?;
-        pool.close().await;
-        println!("已备份数据库到 {}", backup_path.display());
+    if let Some(path) = crate::update::backup_database(&config.data_dir)
+        .await
+        .map_err(|e| fail(e.to_string()))?
+    {
+        println!("已备份数据库到 {}", path.display());
     }
 
-    let current_exe =
-        std::env::current_exe().map_err(|e| fail(format!("无法定位当前程序: {e}")))?;
-    let previous = current_exe.with_extension("previous");
-    std::fs::copy(&current_exe, &previous)?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&previous, std::fs::Permissions::from_mode(0o755))?;
-    }
-    println!("正在替换程序文件 {} …", current_exe.display());
-    if let Err(err) = std::fs::rename(&new_exe, &current_exe) {
-        let _ = std::fs::copy(&previous, &current_exe);
-        return Err(fail(format!("替换程序失败，已回滚: {err}")));
-    }
+    let previous = crate::update::replace_exe(&staged.path).map_err(|e| fail(e.to_string()))?;
+    println!("正在替换程序文件 …");
 
     if Path::new(SERVICE_FILE).exists() {
         println!("正在重启 systemd 服务…");
@@ -471,7 +305,7 @@ async fn update() -> CliResult<()> {
             .args(["restart", SERVICE_NAME])
             .status();
         if !matches!(restart, Ok(status) if status.success()) {
-            let _ = std::fs::copy(&previous, &current_exe);
+            let _ = crate::update::restore_previous(&previous);
             let _ = ProcessCommand::new("systemctl")
                 .args(["restart", SERVICE_NAME])
                 .status();

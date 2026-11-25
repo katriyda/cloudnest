@@ -2,7 +2,10 @@
 #
 # 安装后的默认路径：/etc/cloudnest/config.toml
 # 启动命令：cloudnest serve --config /etc/cloudnest/config.toml
-# 修改配置后需要重启服务：systemctl restart cloudnest
+#
+# 管理员可在网页「站点设置」中修改本文件中的可调项并立即生效；
+# 网页保存会整份重写本文件（手工注释不会保留）。
+# listen 与 data_dir 的变更需要重启服务：systemctl restart cloudnest.service
 
 # HTTP 监听地址。
 # 默认监听所有网卡：0.0.0.0:8080。
@@ -23,8 +26,10 @@ public_url = ""
 # 提示：public_url 以 https:// 开头时会自动启用此选项。
 secure_cookies = false
 
-# 单次 HTTP 请求体的最大体积（单位 MiB）。
-# 通过反向代理上传大文件时，代理侧的限制也应同步放宽。
+# 源站单个 HTTP 请求体的最大体积（单位 MiB）。
+# 超过 16 MiB 的文件会由前端自动改为分片上传（每片 4 MiB），
+# 因此 Cloudflare 免费版 100 MB 的请求体限制不会阻止大文件上传。
+# 通过反向代理时，代理侧的限制也应同步放宽。
 max_upload_size_mb = 2048
 
 # 新建用户的默认存储配额（单位 GiB），0 表示不限。

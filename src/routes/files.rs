@@ -104,6 +104,9 @@ pub struct FolderDialogQuery {
     pub parent_id: Option<i64>,
 }
 
+/// 前端每片 4 MiB；这里留出余量，同时远低于 Cloudflare 免费版 100 MB 的请求体上限。
+pub const MAX_CHUNK_BYTES: usize = 16 * 1024 * 1024;
+
 #[derive(Deserialize)]
 pub struct UploadInitForm {
     pub csrf: String,
@@ -928,7 +931,7 @@ pub async fn upload(
     let mut csrf = String::new();
     let mut parent_id = 0i64;
     let mut rel_path = String::new();
-    let max_total = state.config.max_upload_bytes() as i64;
+    let max_total = state.config().max_upload_bytes() as i64;
     let mut total: i64 = 0;
 
     while let Some(mut field) = multipart.next_field().await? {
@@ -1130,7 +1133,10 @@ pub async fn upload_chunk(
     if offset != upload.received {
         return Err(AppError::BadRequest("上传没有对上进度，请重新上传".into()));
     }
-    if body.len() > 16 * 1024 * 1024 {
+    if body.is_empty() {
+        return Err(AppError::BadRequest("上传数据为空".to_string()));
+    }
+    if body.len() > MAX_CHUNK_BYTES {
         return Err(AppError::BadRequest("上传数据过大".to_string()));
     }
     if upload.received.saturating_add(body.len() as i64) > upload.total_size {
@@ -1143,7 +1149,6 @@ pub async fn upload_chunk(
         .open(&upload.temp_path)
         .await?;
     file.write_all(&body).await?;
-    drop(file);
     let new_received = upload.received + body.len() as i64;
     let updated = sqlx::query("UPDATE uploads SET received = ? WHERE token = ? AND received = ?")
         .bind(new_received)
@@ -1152,10 +1157,13 @@ pub async fn upload_chunk(
         .execute(&state.pool)
         .await?;
     if updated.rows_affected() == 0 {
+        // 进度没有抢到就不要把这一片留在临时文件里，否则续传数据会错位。
+        let _ = file.set_len(upload.received as u64).await;
         return Err(AppError::BadRequest(
             "多个上传同时进行，请稍后重试".to_string(),
         ));
     }
+    drop(file);
     Ok(axum::Json(serde_json::json!({
         "received": new_received,
         "size": upload.total_size
@@ -1197,6 +1205,20 @@ pub async fn upload_complete(
     )
     .await?;
     let temp_path = PathBuf::from(&upload.temp_path);
+    let actual_size = tokio::fs::metadata(&temp_path)
+        .await
+        .map(|meta| meta.len())
+        .unwrap_or(0);
+    if actual_size != upload.total_size as u64 {
+        let _ = tokio::fs::remove_file(&temp_path).await;
+        let _ = sqlx::query("DELETE FROM uploads WHERE token = ?")
+            .bind(&token)
+            .execute(&state.pool)
+            .await;
+        return Err(AppError::BadRequest(
+            "上传文件不完整，请重新上传".to_string(),
+        ));
+    }
     if let Ok(file) = tokio::fs::OpenOptions::new()
         .read(true)
         .open(&temp_path)

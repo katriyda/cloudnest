@@ -74,8 +74,8 @@ sudo bash ./install.sh
 ### 3.3 安装脚本行为
 
 - 校验通过后才解压安装，解压过程拒绝包含绝对路径或 `..` 的归档；
-- 创建系统用户 `cloudnest`，目录权限：`/opt/cloudnest` 0755、`/etc/cloudnest` 0750、`/var/lib/cloudnest` 0750；
-- 已存在的 `/etc/cloudnest/config.toml` 不会被覆盖，升级时配置得以保留；
+- 创建系统用户 `cloudnest`，目录权限：`/opt/cloudnest` 0770、`/etc/cloudnest` 0770（属主 root、属组 cloudnest，供网页设置与一键更新写回）、`/var/lib/cloudnest` 0750；
+- `/etc/cloudnest/config.toml` 为 0640、root:cloudnest；已存在时不会被覆盖，升级时配置得以保留；
 - 安装并 `systemctl enable --now cloudnest.service`；若目标环境没有运行中的 systemd，脚本仅安装文件并给出提示；
 - 支持 `--version`、`--no-start` 参数，以及 `CLOUDNEST_VERSION`、`CLOUDNEST_REPO` 环境变量。
 
@@ -102,7 +102,9 @@ curl -I http://127.0.0.1:8080/
 
 ## 4. 配置
 
-配置文件默认路径为 `/etc/cloudnest/config.toml`，修改后需重启服务。
+配置文件默认路径为 `/etc/cloudnest/config.toml`。管理员也可以登录后在网页「站点设置」中修改，保存时写回同一文件：`public_url`、`secure_cookies`、`max_upload_size_mb`、`default_quota_gb`、`session_days` 立即生效；`listen` 保存到文件后需重启服务。环境变量 `CLOUDNEST_*` 覆盖的字段以环境变量为准。
+
+网页保存采用同目录临时文件改名，服务用户需要对 `/etc/cloudnest` 有写权限（安装脚本默认授予 0770 root:cloudnest）。修改后手工编辑仍可用，但网页保存会整份重写文件、不保留注释。
 
 | 字段 | 默认值 | 说明 |
 | --- | --- | --- |
@@ -110,7 +112,7 @@ curl -I http://127.0.0.1:8080/
 | `data_dir` | `/var/lib/cloudnest` | 数据目录 |
 | `public_url` | 空 | 对外访问地址 |
 | `secure_cookies` | `false` | 仅 HTTPS 发送 Cookie；public_url 为 https 时自动启用 |
-| `max_upload_size_mb` | `2048` | 单次请求体上限（MiB） |
+| `max_upload_size_mb` | `2048` | 源站单次请求体上限（MiB）；超过 16 MiB 的文件自动分片上传 |
 | `default_quota_gb` | `10` | 新用户默认配额（GiB），0 为不限 |
 | `session_days` | `30` | 会话有效期（天） |
 
@@ -164,6 +166,10 @@ server {
 ```
 
 大文件上传时，代理的请求体限制、超时与磁盘缓冲策略需要与 `max_upload_size_mb` 匹配。
+
+### Cloudflare
+
+Cloudflare 免费版对单个请求体限制 100 MB，该限制在边缘生效，源站的 `max_upload_size_mb` 无法放宽。前端会对超过 16 MiB 的文件自动切换到分片上传通道（每片 4 MiB，支持断点续传），因此大于 100 MB 的文件也会被拆成远低于限制的请求逐个提交。分片接口同样经过登录、CSRF 与配额校验；单文件总大小受用户配额限制。
 
 ## 6. 服务管理与日志
 
@@ -229,6 +235,23 @@ curl -fsSL https://github.com/katriyda/cloudnest/releases/latest/download/instal
 ```bash
 sudo /opt/cloudnest/cloudnest update
 ```
+
+### 8.1 网页一键更新
+
+通过安装脚本部署的 Linux 实例，管理员可在「站点设置 → 版本更新」中检查并点击「立即更新」：
+
+1. 服务以服务用户身份从 GitHub Releases 读取最新正式版本；
+2. 下载对应架构发布包，按 `SHA256SUMS` 或 `.sha256` 校验 SHA256；
+3. 使用 SQLite `VACUUM INTO` 把数据库备份到 `/var/lib/cloudnest/backups/pre-update-<版本>-<时间>.db`；
+4. 替换 `/opt/cloudnest/cloudnest`（旧文件保留为 `cloudnest.previous`），随后原地重新执行进程；
+5. 页面会自动轮询 `/api/version`，确认新版本上线后刷新。
+
+前提与注意：
+
+- 需要服务用户对 `/opt/cloudnest` 与 `/etc/cloudnest` 有写权限，systemd 单元的 `ReadWritePaths` 已包含这两个目录；
+- 更新源为 GitHub HTTPS，网络不可达时会返回错误，可继续使用 CLI 或离线包；
+- 替换前会先备份数据库，但不会暂停上传；建议在低峰期操作；
+- 非 Linux 平台或未通过安装脚本部署的环境只提供版本检查，请使用发布包/CLI 升级。
 
 升级后检查：
 
@@ -298,6 +321,9 @@ cross build --release --locked --target aarch64-unknown-linux-musl
 | 磁盘写入失败 | 数据盘满或配额已满 | 检查 `df -h` 与应用日志；管理员调整配额 |
 | musl 构建链接失败 | SQLite 非 bundled 或缺少交叉工具链 | 确认 sqlx `sqlite` bundled feature，使用 `cross` 构建 |
 | `update` / `uninstall` 无效 | 非 root 执行或未通过安装脚本安装 | 使用 root 执行；检查服务与安装路径 |
+| 网页保存设置提示无法写入 | 服务用户对 `/etc/cloudnest` 无写权限 | 恢复安装脚本权限：`chown root:cloudnest /etc/cloudnest && chmod 0770 /etc/cloudnest` |
+| 网页更新提示无法替换程序 | 服务用户对 `/opt/cloudnest` 无写权限，或单元缺少 `ReadWritePaths` | 恢复 `0770 root:cloudnest` 目录权限并检查 systemd 单元 |
+| 网页更新下载/校验失败 | 网络不可达、GitHub 限流或发布资产/校验文件缺失 | 查看 `journalctl -u cloudnest.service`，改用 `cloudnest update` 或发布包 |
 
 ### 11.1 收集诊断信息
 

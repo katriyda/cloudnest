@@ -249,6 +249,28 @@ pub struct AccountPage {
     pub user_file_count: i64,
 }
 
+pub struct SettingsPage {
+    pub common: Common,
+    /// 当前运行版本与平台。
+    pub current_version: String,
+    pub update_supported: bool,
+    pub platform_label: String,
+    /// 配置文件路径；为空表示当前进程没有可写回的配置文件。
+    pub config_path: String,
+    /// 磁盘上保存的值（编辑表单以此为准）。
+    pub listen: String,
+    pub public_url: String,
+    pub secure_cookies: bool,
+    pub max_upload_size_mb: u64,
+    pub default_quota_gb: i64,
+    pub session_days: i64,
+    /// 运行中的监听地址，用于提示“重启后生效”。
+    pub running_listen: String,
+    pub listen_pending: bool,
+    pub data_dir: String,
+    pub env_overrides: Vec<String>,
+}
+
 pub struct LoginPage {
     pub error: Option<String>,
     pub next: String,
@@ -409,6 +431,12 @@ pub struct TrashTemplate {
 #[template(path = "shares.html")]
 pub struct SharesTemplate {
     pub page: SharesPage,
+}
+
+#[derive(Template)]
+#[template(path = "settings.html")]
+pub struct SettingsTemplate {
+    pub page: SettingsPage,
 }
 
 #[derive(Template)]

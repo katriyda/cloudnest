@@ -1,6 +1,7 @@
 pub mod admin;
 pub mod auth_routes;
 pub mod files;
+pub mod settings;
 pub mod shares;
 pub mod trash;
 
@@ -31,8 +32,18 @@ const FONT_MONO_400: &[u8] =
 const FONT_MONO_500: &[u8] =
     include_bytes!("../../static/fonts/ibm-plex-mono-latin-500-normal.woff2");
 
+/// 按当前生效配置设置请求体上限，配置热更新后无需重启即可生效。
+async fn dynamic_body_limit(
+    State(state): State<AppState>,
+    mut request: Request,
+    next: Next,
+) -> Response {
+    let limit = state.config().max_upload_bytes() as usize;
+    DefaultBodyLimit::max(limit).apply(&mut request);
+    next.run(request).await
+}
+
 pub fn router(state: AppState) -> Router {
-    let max_body = state.config.max_upload_bytes() as usize;
     Router::new()
         .route("/", get(root))
         .route("/healthz", get(health))
@@ -91,7 +102,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/upload/{token}", get(files::upload_status))
         .route(
             "/api/upload/chunk/{token}",
-            post(files::upload_chunk).layer(DefaultBodyLimit::max(16 * 1024 * 1024)),
+            post(files::upload_chunk).layer(DefaultBodyLimit::max(files::MAX_CHUNK_BYTES)),
         )
         .route("/api/upload/complete/{token}", post(files::upload_complete))
         .route("/trash", get(trash::index))
@@ -118,8 +129,15 @@ pub fn router(state: AppState) -> Router {
         .route("/admin/users/delete", post(admin::delete_user))
         .route("/admin/users/password", post(admin::reset_password))
         .route("/admin/users/quota", post(admin::set_quota))
+        .route("/admin/settings", get(settings::index).post(settings::save))
+        .route("/admin/update/check", get(settings::check_update))
+        .route("/admin/update/apply", post(settings::apply_update))
+        .route("/api/version", get(api_version))
         .fallback(not_found)
-        .layer(DefaultBodyLimit::max(max_body))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            dynamic_body_limit,
+        ))
         .layer(middleware::from_fn(security_headers))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
@@ -290,6 +308,14 @@ async fn asset_favicon() -> Response {
         HeaderValue::from_static("public, max-age=86400"),
     );
     response
+}
+
+async fn api_version() -> Response {
+    axum::Json(serde_json::json!({
+        "version": crate::cli::VERSION,
+        "web_update": crate::update::web_update_supported(),
+    }))
+    .into_response()
 }
 
 async fn not_found() -> Response {

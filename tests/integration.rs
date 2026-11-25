@@ -4,7 +4,11 @@ use axum::http::{Method, Request, StatusCode, header};
 use axum::response::Response;
 use cloudnest::config::Config;
 use cloudnest::state::AppState;
-use serde_json::Value;
+use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
+use std::collections::HashMap;
+use std::io::Write as _;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tower::ServiceExt;
 
 struct TestApp {
@@ -22,7 +26,11 @@ async fn test_app() -> TestApp {
         default_quota_gb: 1,
         ..Config::default()
     };
-    let state = AppState::new(cfg).await.expect("app state");
+    let config_path = dir.path().join("config.toml");
+    cfg.save(&config_path).expect("write config file");
+    let state = AppState::with_config_file(cfg, config_path)
+        .await
+        .expect("app state");
     let app = cloudnest::routes::router(state.clone());
     TestApp {
         app,
@@ -528,6 +536,93 @@ async fn resumable_upload_flow() {
 }
 
 #[tokio::test]
+async fn chunked_upload_above_cloudflare_body_limit() {
+    let t = test_app().await;
+    let (cookie, csrf) = setup_admin(&t).await;
+
+    // Cloudflare 免费版限制单个请求体 100 MB；这里上传超过 100 MiB 的文件，
+    // 确认前端分片通道使用的接口不依赖单个大请求，且拼接后的内容完整。
+    const CHUNK: usize = 4 * 1024 * 1024;
+    let total: usize = 101 * 1024 * 1024 + 12345;
+
+    let response = send(
+        &t.app,
+        Method::POST,
+        "/api/upload/init",
+        Some(&cookie),
+        form_body(&[
+            ("csrf", &csrf),
+            ("parent_id", "0"),
+            ("path", ""),
+            ("name", "cloudflare-big.bin"),
+            ("size", &total.to_string()),
+        ]),
+        Some("application/x-www-form-urlencoded"),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let json: Value = serde_json::from_str(&body_text(response).await).unwrap();
+    let token = json["token"].as_str().unwrap().to_string();
+
+    let mut hasher = Sha256::new();
+    let mut offset = 0usize;
+    while offset < total {
+        let len = CHUNK.min(total - offset);
+        let mut chunk = vec![0u8; len];
+        // 每片写入当前偏移，既能验证顺序，也避免整块重复数据掩盖错位。
+        chunk[..8].copy_from_slice(&(offset as u64).to_le_bytes());
+        hasher.update(&chunk);
+
+        let response = t
+            .app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri(format!("/api/upload/chunk/{token}"))
+                    .header(header::COOKIE, &cookie)
+                    .header("x-csrf-token", &csrf)
+                    .header("x-offset", offset.to_string())
+                    .body(Body::from(chunk))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        offset += len;
+    }
+    let expected_hash = hex::encode(hasher.finalize());
+
+    let response = t
+        .app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri(format!("/api/upload/complete/{token}"))
+                .header(header::COOKIE, &cookie)
+                .header("x-csrf-token", &csrf)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let (size, storage_key): (i64, String) =
+        sqlx::query_as("SELECT size, storage_key FROM files WHERE name = 'cloudflare-big.bin'")
+            .fetch_one(&t.state.pool)
+            .await
+            .unwrap();
+    assert_eq!(size, total as i64);
+    let stored = tokio::fs::read(t.state.stored_file_path(1, &storage_key))
+        .await
+        .unwrap();
+    assert_eq!(stored.len(), total);
+    assert_eq!(hex::encode(Sha256::digest(&stored)), expected_hash);
+}
+
+#[tokio::test]
 async fn user_isolation_and_admin_controls() {
     let t = test_app().await;
     let (admin_cookie, csrf) = setup_admin(&t).await;
@@ -833,4 +928,466 @@ async fn quota_is_enforced() {
     )
     .await;
     assert_eq!(response.status(), StatusCode::SEE_OTHER);
+}
+
+// ---- 网页设置与在线更新 ----
+
+type FakeRoutes = Vec<(String, u16, Vec<u8>)>;
+
+async fn fake_server<F>(build: F) -> String
+where
+    F: FnOnce(&str) -> FakeRoutes,
+{
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .expect("bind fake server");
+    let addr = listener.local_addr().expect("fake server addr");
+    let base = format!("http://{addr}");
+    let routes: HashMap<String, (u16, Vec<u8>)> = build(&base)
+        .into_iter()
+        .map(|(path, status, body)| (path, (status, body)))
+        .collect();
+    tokio::spawn(async move {
+        loop {
+            let Ok((mut socket, _)) = listener.accept().await else {
+                break;
+            };
+            let routes = routes.clone();
+            tokio::spawn(async move {
+                let mut request = Vec::new();
+                let mut buffer = [0u8; 4096];
+                loop {
+                    match socket.read(&mut buffer).await {
+                        Ok(0) => break,
+                        Ok(n) => {
+                            request.extend_from_slice(&buffer[..n]);
+                            if request.windows(4).any(|window| window == b"\r\n\r\n") {
+                                break;
+                            }
+                        }
+                        Err(_) => return,
+                    }
+                }
+                let first_line = String::from_utf8_lossy(&request);
+                let path = first_line
+                    .lines()
+                    .next()
+                    .and_then(|line| line.split_whitespace().nth(1))
+                    .unwrap_or("/")
+                    .to_string();
+                let (status, body) = routes
+                    .get(&path)
+                    .cloned()
+                    .unwrap_or_else(|| (404, b"missing".to_vec()));
+                let response = format!(
+                    "HTTP/1.1 {status} OK\r\nContent-Length: {}\r\nContent-Type: application/octet-stream\r\nConnection: close\r\n\r\n",
+                    body.len()
+                );
+                let mut payload = response.into_bytes();
+                payload.extend_from_slice(&body);
+                let _ = socket.write_all(&payload).await;
+                let _ = socket.shutdown().await;
+            });
+        }
+    });
+    base
+}
+
+fn release_json(tag: &str, base: &str) -> Vec<u8> {
+    let asset = cloudnest::update::release_asset_name().expect("asset name");
+    serde_json::to_vec(&json!({
+        "tag_name": tag,
+        "assets": [
+            { "name": asset, "browser_download_url": format!("{base}/asset") },
+            { "name": "SHA256SUMS", "browser_download_url": format!("{base}/SHA256SUMS") }
+        ]
+    }))
+    .expect("release json")
+}
+
+fn tar_gz_with_binary(binary: &[u8]) -> Vec<u8> {
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = tar::Builder::new(&mut tar_bytes);
+        let mut header = tar::Header::new_gnu();
+        header.set_size(binary.len() as u64);
+        header.set_mode(0o755);
+        header.set_mtime(0);
+        header.set_cksum();
+        builder
+            .append_data(&mut header, "cloudnest", binary)
+            .expect("append tar entry");
+        builder.finish().expect("finish tar");
+    }
+    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    encoder.write_all(&tar_bytes).expect("gzip write");
+    encoder.finish().expect("gzip finish")
+}
+
+fn settings_form<'a>(
+    csrf: &'a str,
+    listen: &'a str,
+    public_url: &'a str,
+    upload_mb: &'a str,
+    quota_gb: &'a str,
+) -> Vec<(&'a str, &'a str)> {
+    vec![
+        ("csrf", csrf),
+        ("listen", listen),
+        ("public_url", public_url),
+        ("secure_cookies", "on"),
+        ("max_upload_size_mb", upload_mb),
+        ("default_quota_gb", quota_gb),
+        ("session_days", "14"),
+    ]
+}
+
+#[tokio::test]
+async fn settings_page_hot_reloads_and_validates() {
+    let t = test_app().await;
+    let (cookie, csrf) = setup_admin(&t).await;
+
+    let response = send(
+        &t.app,
+        Method::GET,
+        "/admin/settings",
+        Some(&cookie),
+        Body::empty(),
+        None,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let html = body_text(response).await;
+    assert!(html.contains("站点设置"), "settings page title");
+    assert!(html.contains("版本更新"), "update panel");
+    assert!(html.contains(cloudnest::cli::VERSION), "current version");
+
+    // 非法地址必须被拒绝，且不能写坏配置文件。
+    let response = send(
+        &t.app,
+        Method::POST,
+        "/admin/settings",
+        Some(&cookie),
+        form_body(&settings_form(
+            &csrf,
+            "127.0.0.1:19999",
+            "ftp://invalid.example",
+            "1",
+            "7",
+        )),
+        Some("application/x-www-form-urlencoded"),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let file = std::fs::read_to_string(t.state.config_path().expect("config path")).unwrap();
+    assert!(!file.contains("ftp://invalid.example"));
+
+    // 合法保存：写入文件并立即热更新。
+    let response = send(
+        &t.app,
+        Method::POST,
+        "/admin/settings",
+        Some(&cookie),
+        form_body(&settings_form(
+            &csrf,
+            "127.0.0.1:19999",
+            "https://cloud.example.com",
+            "1",
+            "7",
+        )),
+        Some("application/x-www-form-urlencoded"),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::SEE_OTHER);
+
+    let file = std::fs::read_to_string(t.state.config_path().expect("config path")).unwrap();
+    assert!(
+        file.contains("listen = \"127.0.0.1:19999\""),
+        "listen saved: {file}"
+    );
+    assert!(file.contains("default_quota_gb = 7"), "quota saved: {file}");
+    assert!(
+        file.contains("max_upload_size_mb = 1"),
+        "upload limit saved"
+    );
+    assert!(file.contains("https://cloud.example.com"));
+
+    let running = t.state.config();
+    assert_eq!(running.default_quota_gb, 7, "quota hot reloaded");
+    assert_eq!(running.max_upload_size_mb, 1, "upload limit hot reloaded");
+    assert_eq!(running.session_days, 14);
+    assert_eq!(
+        running.public_url.as_deref(),
+        Some("https://cloud.example.com")
+    );
+    assert!(
+        running.secure_cookies,
+        "https public url forces secure cookies"
+    );
+    assert_eq!(running.listen, "127.0.0.1:0", "listen needs a restart");
+
+    // 热更新后的默认配额直接作用于新账户。
+    let response = send(
+        &t.app,
+        Method::POST,
+        "/admin/users/create",
+        Some(&cookie),
+        form_body(&[
+            ("csrf", &csrf),
+            ("username", "settings-user"),
+            ("password", "settings-user-pass-123"),
+        ]),
+        Some("application/x-www-form-urlencoded"),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::SEE_OTHER);
+    let quota: i64 =
+        sqlx::query_scalar("SELECT quota_bytes FROM users WHERE username = 'settings-user'")
+            .fetch_one(&t.state.pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        quota,
+        7 * 1024 * 1024 * 1024,
+        "new user uses reloaded default quota"
+    );
+
+    // 上传上限热更新后，请求体限制也立即收紧（这里用表单解析器验证 413）。
+    let big = "x".repeat(1_100_000);
+    let response = send(
+        &t.app,
+        Method::POST,
+        "/account/password",
+        Some(&cookie),
+        form_body(&[("csrf", &csrf), ("new_password", &big)]),
+        Some("application/x-www-form-urlencoded"),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+
+    let response = send(
+        &t.app,
+        Method::GET,
+        "/admin/settings",
+        Some(&cookie),
+        Body::empty(),
+        None,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let html = body_text(response).await;
+    assert!(html.contains("需重启服务后生效"), "restart hint shown");
+}
+
+#[tokio::test]
+async fn update_check_and_staging_via_local_api() {
+    let binary = b"#!/bin/sh\necho cloudnest-new\n".to_vec();
+    let archive = tar_gz_with_binary(&binary);
+    let checksum = hex::encode(Sha256::digest(&archive));
+    let base = fake_server(|base| {
+        vec![
+            (
+                "/repos/katriyda/cloudnest/releases/latest".to_string(),
+                200,
+                release_json("v9.9.9", base),
+            ),
+            ("/asset".to_string(), 200, archive.clone()),
+            (
+                "/SHA256SUMS".to_string(),
+                200,
+                format!(
+                    "{checksum}  {}\n",
+                    cloudnest::update::release_asset_name().unwrap()
+                )
+                .into_bytes(),
+            ),
+        ]
+    })
+    .await;
+
+    let t = test_app().await;
+    t.state.updates.set_api_base(base);
+    let (cookie, _csrf) = setup_admin(&t).await;
+
+    let response = send(
+        &t.app,
+        Method::GET,
+        "/api/version",
+        None,
+        Body::empty(),
+        None,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let json: Value = serde_json::from_str(&body_text(response).await).unwrap();
+    assert_eq!(json["version"], cloudnest::cli::VERSION);
+
+    let response = send(
+        &t.app,
+        Method::GET,
+        "/admin/update/check",
+        Some(&cookie),
+        Body::empty(),
+        None,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let json: Value = serde_json::from_str(&body_text(response).await).unwrap();
+    assert_eq!(json["ok"], true);
+    assert_eq!(json["latest"], "v9.9.9");
+    assert_eq!(json["has_update"], true);
+    assert_eq!(json["supported"], cfg!(target_os = "linux"));
+
+    let work_dir = t._dir.path().join("stage");
+    let service = t.state.updates.clone();
+    let staged = tokio::task::spawn_blocking(move || service.stage_latest(&work_dir))
+        .await
+        .expect("stage task")
+        .expect("stage release");
+    assert_eq!(staged.version, "v9.9.9");
+    assert_eq!(
+        std::fs::read(&staged.path).expect("read staged binary"),
+        binary
+    );
+}
+
+#[tokio::test]
+async fn update_staging_rejects_bad_checksum() {
+    let archive = tar_gz_with_binary(b"not the real payload");
+    let base = fake_server(move |base| {
+        vec![
+            (
+                "/repos/katriyda/cloudnest/releases/latest".to_string(),
+                200,
+                release_json("v9.9.9", base),
+            ),
+            ("/asset".to_string(), 200, archive.clone()),
+            (
+                "/SHA256SUMS".to_string(),
+                200,
+                format!(
+                    "0000  {}\n",
+                    cloudnest::update::release_asset_name().unwrap()
+                )
+                .into_bytes(),
+            ),
+        ]
+    })
+    .await;
+    let t = test_app().await;
+    t.state.updates.set_api_base(base);
+    let service = t.state.updates.clone();
+    let work_dir = t._dir.path().join("stage-bad");
+    let stage_path = work_dir.clone();
+    let error = tokio::task::spawn_blocking(move || service.stage_latest(&stage_path))
+        .await
+        .expect("stage task")
+        .expect_err("checksum must fail");
+    assert!(error.0.contains("SHA256"), "unexpected error: {error}");
+    assert!(!work_dir.join("cloudnest").exists());
+}
+
+#[tokio::test]
+async fn web_update_apply_requires_csrf_and_never_touches_exe_on_error() {
+    let t = test_app().await;
+    let (cookie, csrf) = setup_admin(&t).await;
+    let archive = tar_gz_with_binary(b"payload");
+    let base = fake_server(move |base| {
+        vec![
+            (
+                "/repos/katriyda/cloudnest/releases/latest".to_string(),
+                200,
+                release_json("v9.9.9", base),
+            ),
+            ("/asset".to_string(), 200, archive.clone()),
+            (
+                "/SHA256SUMS".to_string(),
+                200,
+                format!(
+                    "ffff  {}\n",
+                    cloudnest::update::release_asset_name().unwrap()
+                )
+                .into_bytes(),
+            ),
+        ]
+    })
+    .await;
+    t.state.updates.set_api_base(base);
+
+    let response = send(
+        &t.app,
+        Method::POST,
+        "/admin/update/apply",
+        Some(&cookie),
+        form_body(&[("csrf", "wrong-token")]),
+        Some("application/x-www-form-urlencoded"),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let json: Value = serde_json::from_str(&body_text(response).await).unwrap();
+    assert_eq!(json["ok"], false);
+
+    let response = send(
+        &t.app,
+        Method::POST,
+        "/admin/update/apply",
+        Some(&cookie),
+        form_body(&[("csrf", &csrf)]),
+        Some("application/x-www-form-urlencoded"),
+    )
+    .await;
+    let status = response.status();
+    let json: Value = serde_json::from_str(&body_text(response).await).unwrap();
+    assert_eq!(json["ok"], false);
+    if cfg!(target_os = "linux") {
+        assert_eq!(status, StatusCode::BAD_GATEWAY);
+        assert!(json["message"].as_str().unwrap_or("").contains("SHA256"));
+    } else {
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert!(json["message"].as_str().unwrap_or("").contains("不支持"));
+    }
+}
+
+#[tokio::test]
+async fn settings_and_update_are_admin_only() {
+    let t = test_app().await;
+    let (_admin_cookie, admin_csrf) = setup_admin(&t).await;
+    let response = send(
+        &t.app,
+        Method::POST,
+        "/admin/users/create",
+        Some(&_admin_cookie),
+        form_body(&[
+            ("csrf", &admin_csrf),
+            ("username", "bob"),
+            ("password", "bob-password-123"),
+            ("quota_gb", "1"),
+        ]),
+        Some("application/x-www-form-urlencoded"),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::SEE_OTHER);
+    let cookie = login(&t, "bob", "bob-password-123").await;
+
+    let response = send(
+        &t.app,
+        Method::GET,
+        "/admin/settings",
+        Some(&cookie),
+        Body::empty(),
+        None,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    let response = send(
+        &t.app,
+        Method::GET,
+        "/admin/update/check",
+        Some(&cookie),
+        Body::empty(),
+        None,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
 }
