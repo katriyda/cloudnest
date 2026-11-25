@@ -277,8 +277,8 @@ ensure_user() {
 
 install_layout() {
     # 程序目录与配置目录对服务用户组可写：
-    # - 程序目录用于网页“版本更新”替换二进制；
-    # - 配置目录用于网页“站点设置”原子写回 config.toml。
+    # - 程序目录用于网页「版本更新」替换二进制；
+    # - 配置目录用于网页「站点设置」原子写回 config.toml。
     # 目录属主仍为 root，仅服务用户组获得写权限。
     install -d -m 0770 -o root -g "$SERVICE_USER" "$INSTALL_DIR"
     install -d -m 0770 -o root -g "$SERVICE_USER" "$CONFIG_DIR"
@@ -303,7 +303,7 @@ install_config() {
         return 0
     fi
     install -m 0640 -o root -g "$SERVICE_USER" "$SOURCE_DIR/config.toml.example" "$CONFIG_FILE"
-    log "配置文件已创建：$CONFIG_FILE（可在网页“站点设置”中修改，或直接编辑后重启服务）"
+    log "配置文件已创建：$CONFIG_FILE（可在网页「站点设置」中修改，或直接编辑后重启服务）"
 }
 
 systemd_available() {
