@@ -39,6 +39,9 @@ jobs:
           test -f "$cfg"
           systemctl is-enabled "$(basename "$unit")"
           "$bin" status -c "$cfg" || true
+          file "$bin" | grep -Eq "statically linked|static-pie linked"
+          # 自更新检查：应能读到真实 Release 并判断已是最新版本
+          "$bin" update
 
       - name: 校验 Release 资产与 SHA256SUMS
         run: |
