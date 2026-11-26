@@ -77,7 +77,16 @@ jobs:
         working-directory: tests/e2e
         run: |
           npm ci
-          npx playwright install --with-deps chromium
+          # GitHub 的 ubuntu 镜像已自带 Chromium 运行库；这里不用 --with-deps，
+          # 避免第三方 apt 源（如 packages.microsoft.com）不可用时整个任务失败。
+          npx playwright install chromium
+
+      - name: 安装 Chromium 运行库（尽力而为）
+        working-directory: tests/e2e
+        run: |
+          set -euo pipefail
+          npx playwright install-deps chromium ||
+            echo "::warning::Chromium 系统依赖安装失败，若测试无法启动浏览器请检查运行库"
 
       - name: 运行网页端到端测试
         working-directory: tests/e2e
