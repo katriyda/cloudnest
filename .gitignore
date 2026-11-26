@@ -10,3 +10,7 @@ Thumbs.db
 
 # 本地会话日志，不入库
 .agents/
+
+# 网页端到端测试依赖
+node_modules/
+test-results/

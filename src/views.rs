@@ -25,6 +25,8 @@ pub struct Common {
     pub used_bytes: i64,
     pub quota_bytes: i64,
     pub file_count: i64,
+    /// 顶栏搜索框回填的当前关键词（只在文件页有值）。
+    pub search_query: String,
     /// 带内容哈希的前端资源地址（每次发布都会变化）。
     pub assets: Assets,
 }
@@ -111,6 +113,7 @@ pub async fn build_common(
         used_bytes,
         quota_bytes: user.quota_bytes,
         file_count,
+        search_query: String::new(),
         assets: Assets::new(),
     })
 }

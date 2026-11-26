@@ -81,7 +81,7 @@
       <button class="icon-btn menu-btn" type="button" @click="openDrawer()" aria-label="打开导航" aria-controls="sidebar">{% include "icons/menu.svg" %}</button>
       <form class="search" action="/files" method="get" role="search">
         {% include "icons/search.svg" %}
-        <input type="search" name="q" placeholder="搜索文件与文件夹" aria-label="搜索文件" autocomplete="off">
+        <input type="search" name="q" placeholder="搜索文件与文件夹" aria-label="搜索文件" autocomplete="off" value="{{ page.common.search_query }}">
       </form>
       <div class="topbar-actions">
         <button class="icon-btn theme-toggle" type="button" @click="toggleTheme()" title="切换主题" aria-label="切换浅色/深色主题">

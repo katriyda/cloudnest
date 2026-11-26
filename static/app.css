@@ -285,6 +285,8 @@ img { max-width: 100%; }
 .card-meta { font-size: var(--fs-2xs); color: var(--muted); font-family: var(--font-mono); }
 .card-more { position: absolute; top: 6px; right: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; color: var(--ink-2); opacity: 0; transition: opacity var(--dur) var(--ease); }
 .file-card:hover .card-more, .card-more:focus-visible { opacity: 1; }
+/* 触摸设备没有悬停状态，网格视图的“更多”按钮必须常显，否则无法操作。 */
+@media (hover: none) { .card-more { opacity: 1; } }
 .card-more svg { width: 16px; height: 16px; }
 
 /* empty */

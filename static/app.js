@@ -84,34 +84,45 @@
     }
   }, true);
 
-  // Copy-to-clipboard buttons.
-  $$('[data-copy]').forEach(function (btn) {
-    btn.addEventListener('click', async function () {
-      var text = btn.getAttribute('data-copy') || '';
-      try {
-        await navigator.clipboard.writeText(text);
-        btn.dataset.copied = '1';
-        var old = btn.textContent;
-        btn.textContent = '已复制';
-        setTimeout(function () { btn.textContent = old; delete btn.dataset.copied; }, 1600);
-      } catch (e) {
-        window.prompt('复制这个链接：', text);
-      }
-    });
+  // Copy-to-clipboard buttons (delegated: share rows are re-rendered on navigation).
+  var copyReset = new WeakMap();
+  document.addEventListener('click', async function (event) {
+    var btn = event.target && event.target.closest && event.target.closest('[data-copy]');
+    if (!btn) return;
+    var text = btn.getAttribute('data-copy') || '';
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (e) {
+      window.prompt('复制这个链接：', text);
+      return;
+    }
+    if (copyReset.has(btn)) return;
+    var original = btn.innerHTML;
+    btn.textContent = '已复制';
+    btn.dataset.copied = '1';
+    var timer = setTimeout(function () {
+      btn.innerHTML = original;
+      delete btn.dataset.copied;
+      copyReset.delete(btn);
+    }, 1600);
+    copyReset.set(btn, timer);
   });
 
-  var uploadClose = document.querySelector('[data-upload-close]');
-  if (uploadClose) {
-    uploadClose.addEventListener('click', function () {
-      var panel = uploadClose.closest('.upload-panel');
-      if (panel) panel.hidden = true;
-    });
-  }
+  document.addEventListener('click', function (event) {
+    var close = event.target && event.target.closest && event.target.closest('[data-upload-close]');
+    if (!close) return;
+    var panel = close.closest('.upload-panel');
+    if (panel) panel.hidden = true;
+  });
 
   // Flash messages auto-dismiss; Alpine only owns the shell state.
   document.querySelectorAll('[data-toast]').forEach(function (toast) {
     var close = toast.querySelector('[data-toast-close]');
-    function hide() { toast.remove(); }
+    function hide() {
+      var host = toast.parentElement;
+      toast.remove();
+      if (host && !host.querySelector('[data-toast]')) host.remove();
+    }
     if (close) close.addEventListener('click', hide);
     setTimeout(hide, 4200);
   });
@@ -150,17 +161,16 @@
     document.addEventListener('keydown', function (event) {
       if (event.key === 'Escape' && modal.classList.contains('is-open')) closeModal();
     });
-    var lastModalHtml = '';
     document.body.addEventListener('htmx:after:swap', function () {
+      // 任何局部刷新后都以 #modal 的实际内容为准：有内容就保证打开，
+      // 空内容就关闭。不能按 HTML 做去重，否则连续打开同一个弹窗会打不开。
       var html = modal.innerHTML.trim();
-      if (html === lastModalHtml) return;
-      lastModalHtml = html;
-      if (html !== '') {
-        openModal();
-        if (window.Alpine && Alpine.initTree) Alpine.initTree(modal);
-      } else {
-        closeModal();
+      if (html === '') {
+        if (modal.classList.contains('is-open')) closeModal();
+        return;
       }
+      openModal();
+      if (window.Alpine && Alpine.initTree) Alpine.initTree(modal);
     });
     document.body.addEventListener('htmx:response:error', closeModal);
   }
@@ -168,11 +178,7 @@
   // Upload: multipart below the threshold, resumable 4 MiB chunks above it.
   var pageData = $('#page-data');
   if (pageData && pageData.dataset.page === 'files') {
-    var parentId = pageData.dataset.parentId || '0';
     var uploadUrl = pageData.dataset.uploadUrl || '/files/upload';
-    var fileInputs = $('[data-file-input]');
-    var folderInputs = $('[data-folder-input]');
-    var pane = $('#files-pane');
     var panel = $('#upload-panel');
     var counter = $('#upload-count');
     var fileNameEl = $('#upload-file-name');
@@ -182,6 +188,12 @@
     var uploading = false;
     var CHUNK_SIZE = 4 * 1024 * 1024;
     var CHUNKED_THRESHOLD = 16 * 1024 * 1024;
+
+    // 当前文件夹由 #page-data 提供；页面切换后重新读取，避免使用过期值。
+    function currentParentId() {
+      var node = $('#page-data');
+      return (node && node.dataset.parentId) || '0';
+    }
 
     function showPanel() { if (panel) panel.hidden = false; }
     function setProgress(name, done, total, text) {
@@ -212,7 +224,7 @@
         xhr.onerror = function () { reject(new Error('网络连接中断，请重试')); };
         var form = new FormData();
         form.append('csrf', csrf());
-        form.append('parent_id', parentId);
+        form.append('parent_id', currentParentId());
         form.append('path', relDir || '');
         form.append('files', file, file.name);
         xhr.send(form);
@@ -222,7 +234,7 @@
     async function initChunked(file, relDir) {
       var body = new URLSearchParams();
       body.set('csrf', csrf());
-      body.set('parent_id', parentId);
+      body.set('parent_id', currentParentId());
       body.set('path', relDir || '');
       body.set('name', file.name);
       body.set('size', String(file.size));
@@ -260,7 +272,7 @@
     }
 
     async function uploadChunked(file, relDir) {
-      var fingerprint = 'cn-up-' + [parentId, relDir || '', file.name, file.size, file.lastModified].join('|');
+      var fingerprint = 'cn-up-' + [currentParentId(), relDir || '', file.name, file.size, file.lastModified].join('|');
       var token = null, received = 0;
       try { token = localStorage.getItem(fingerprint); } catch (e) {}
       if (token) {
@@ -347,43 +359,50 @@
       });
     }
 
-    fileInputs.forEach(function (input) {
-      input.addEventListener('change', function () {
-        uploadBatch(filesFromList(input.files, false));
-        input.value = '';
-      });
-    });
-    folderInputs.forEach(function (input) {
-      input.addEventListener('change', function () {
-        uploadBatch(filesFromList(input.files, true));
-        input.value = '';
-      });
+    // 事件委托：htmx 局部刷新会替换整个列表，直接绑定在元素上的监听器会随之失效。
+    document.addEventListener('change', function (event) {
+      var input = event.target;
+      if (!input || input.type !== 'file' || typeof input.matches !== 'function') return;
+      if (!input.matches('[data-file-input], [data-folder-input]')) return;
+      var relative = input.hasAttribute('data-folder-input');
+      if (input.files && input.files.length) {
+        uploadBatch(filesFromList(input.files, relative));
+      }
+      input.value = '';
     });
 
-    if (pane) {
-      var dragDepth = 0;
-      pane.addEventListener('dragenter', function (event) {
-        if (!event.dataTransfer || Array.prototype.indexOf.call(event.dataTransfer.types || [], 'Files') < 0) return;
-        event.preventDefault();
-        dragDepth++;
-        document.body.classList.add('dragging');
-      });
-      pane.addEventListener('dragover', function (event) {
-        event.preventDefault();
-        if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
-      });
-      pane.addEventListener('dragleave', function () {
-        dragDepth = Math.max(0, dragDepth - 1);
-        if (dragDepth === 0) document.body.classList.remove('dragging');
-      });
-      pane.addEventListener('drop', function (event) {
-        event.preventDefault();
-        dragDepth = 0;
-        document.body.classList.remove('dragging');
-        if (!event.dataTransfer) return;
-        uploadBatch(filesFromList(event.dataTransfer.files, false));
-      });
-    }
+    var dragDepth = 0;
+    var dragHasFiles = function (event) {
+      return !!event.dataTransfer &&
+        Array.prototype.indexOf.call(event.dataTransfer.types || [], 'Files') >= 0;
+    };
+    var dragInPane = function (event) {
+      return !!(event.target && event.target.closest && event.target.closest('#files-pane'));
+    };
+    document.addEventListener('dragenter', function (event) {
+      if (!dragHasFiles(event) || !dragInPane(event)) return;
+      event.preventDefault();
+      dragDepth++;
+      document.body.classList.add('dragging');
+    });
+    document.addEventListener('dragover', function (event) {
+      if (!dragHasFiles(event) || !dragInPane(event)) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+    });
+    document.addEventListener('dragleave', function (event) {
+      if (!dragInPane(event)) return;
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (dragDepth === 0) document.body.classList.remove('dragging');
+    });
+    document.addEventListener('drop', function (event) {
+      if (!dragInPane(event)) return;
+      event.preventDefault();
+      dragDepth = 0;
+      document.body.classList.remove('dragging');
+      if (!event.dataTransfer) return;
+      uploadBatch(filesFromList(event.dataTransfer.files, false));
+    });
   }
 
   // Site settings: online update flow.

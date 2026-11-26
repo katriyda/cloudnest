@@ -52,3 +52,34 @@ jobs:
           sudo apt-get install -y shellcheck
           shellcheck scripts/install.sh
 
+  e2e:
+    name: 网页端到端测试
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 缓存 Cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: 构建被测二进制
+        run: cargo build --locked
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 安装网页测试依赖与浏览器
+        working-directory: tests/e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: 运行网页端到端测试
+        working-directory: tests/e2e
+        run: node ui.mjs
+

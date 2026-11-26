@@ -289,8 +289,16 @@ pub async fn logout(
 pub async fn account_page(
     State(state): State<AppState>,
     user: CurrentUser,
+    Query(query): Query<crate::routes::admin::AdminQuery>,
 ) -> Result<Response, AppError> {
-    let common = crate::views::build_common(&state, &user.0, "account", None, None).await?;
+    let common = crate::views::build_common(
+        &state,
+        &user.0,
+        "account",
+        query.ok.as_deref(),
+        query.err.as_deref(),
+    )
+    .await?;
     let created_at: i64 = sqlx::query_scalar("SELECT created_at FROM users WHERE id = ?")
         .bind(user.0.id)
         .fetch_one(&state.pool)

@@ -1,0 +1,12 @@
+{
+  "name": "cloudnest-e2e",
+  "private": true,
+  "type": "module",
+  "description": "CloudNest 网页端到端测试（Playwright）",
+  "scripts": {
+    "test": "node ui.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.65.1"
+  }
+}

@@ -80,7 +80,7 @@
       {% if page.is_search %}
       <a class="btn btn-sm" href="/files?path={{ page.parent_id }}">清除搜索</a>
       {% else %}
-      <label class="btn btn-primary btn-sm">上传文件<input type="file" name="none" class="visually-hidden" data-file-input></label>
+      <label class="btn btn-primary btn-sm">上传文件<input type="file" name="files" multiple class="visually-hidden" data-file-input></label>
       <button class="btn btn-sm" type="button" hx-get="{{ page.folder_dialog_url }}" hx-target="#modal" hx-swap="innerHTML">新建文件夹</button>
       {% endif %}
     </div>
@@ -130,8 +130,8 @@
       <span class="cell cell-num cell-time">{{ entry.updated_text }}</span>
       <div class="row-actions">
         <button class="icon-btn" type="button" @click.stop="toggle()" :aria-expanded="open" aria-haspopup="true" aria-label="更多操作">{% include "icons/more.svg" %}</button>
-        <div class="more-wrap" x-show="open" x-cloak @click.outside="close()">
-          <div class="more-menu">
+        <div class="more-wrap">
+          <div class="more-menu" x-show="open" x-cloak @click.outside="close()">
             {% if !entry.is_dir %}<a class="btn btn-ghost btn-sm" href="/files/{{ entry.id }}/download" @click="close()">下载</a>{% endif %}
             <button class="btn btn-ghost btn-sm" type="button" @click="close()" hx-get="/files/{{ entry.id }}/dialog/rename" hx-target="#modal" hx-swap="innerHTML">重命名</button>
             <button class="btn btn-ghost btn-sm" type="button" @click="close()" hx-get="/files/{{ entry.id }}/dialog/move" hx-target="#modal" hx-swap="innerHTML">移动</button>

@@ -294,7 +294,7 @@ pub async fn index(
     } else {
         "↑".to_string()
     };
-    let common = crate::views::build_common(
+    let mut common = crate::views::build_common(
         &state,
         &user.0,
         "files",
@@ -302,6 +302,7 @@ pub async fn index(
         query.err.as_deref(),
     )
     .await?;
+    common.search_query = query_text.clone();
     let sort_name_href = files_url(
         parent.id,
         &query_text,

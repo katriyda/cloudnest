@@ -1721,6 +1721,70 @@ async fn pages_reference_versioned_assets_and_forbid_caching() {
     );
 }
 
+// ---- 前端交互相关的服务端约定回归测试 ----
+
+#[tokio::test]
+async fn account_page_shows_flash_and_keeps_search_query() {
+    let t = test_app().await;
+    let (cookie, _csrf) = setup_admin(&t).await;
+
+    // 修改密码后会跳回 /account?ok=…，页面必须把提示渲染出来（否则用户以为没生效）。
+    let response = send(
+        &t.app,
+        Method::GET,
+        "/account?ok=%E5%AF%86%E7%A0%81%E5%B7%B2%E6%9B%B4%E6%96%B0",
+        Some(&cookie),
+        Body::empty(),
+        None,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let html = body_text(response).await;
+    assert!(html.contains("toast-ok"), "account flash missing");
+    assert!(html.contains("密码已更新"), "account flash text missing");
+
+    let response = send(
+        &t.app,
+        Method::GET,
+        "/account?err=%E6%93%8D%E4%BD%9C%E5%A4%B1%E8%B4%A5",
+        Some(&cookie),
+        Body::empty(),
+        None,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let html = body_text(response).await;
+    assert!(html.contains("toast-err"), "account error flash missing");
+
+    // 顶栏搜索框要回填当前关键词，方便用户看到并继续修改搜索条件。
+    let response = send(
+        &t.app,
+        Method::GET,
+        "/files?q=report",
+        Some(&cookie),
+        Body::empty(),
+        None,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let html = body_text(response).await;
+    assert!(
+        html.contains("name=\"q\"") && html.contains("value=\"report\""),
+        "search input must keep the current query"
+    );
+
+    // 文件页必须提供上传脚本依赖的 page-data 与上传入口标记。
+    assert!(html.contains("id=\"page-data\""), "page-data missing");
+    assert!(
+        html.contains("data-file-input"),
+        "file input marker missing"
+    );
+    assert!(
+        html.contains("data-folder-input"),
+        "folder input marker missing"
+    );
+}
+
 #[tokio::test]
 async fn versioned_assets_are_immutable_and_support_etag_revalidation() {
     let t = test_app().await;
