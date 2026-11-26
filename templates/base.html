@@ -11,89 +11,119 @@
 <script src="/static/theme.js"></script>
 <script src="/static/htmx.min.js" defer></script>
 <script src="/static/app.js" defer></script>
+<script src="/static/alpine.min.js" defer></script>
 </head>
-<body>
+<body x-data="app">
+<a class="visually-hidden" href="#main-content">跳到主要内容</a>
+
 <div class="app-shell">
-  <aside class="rail" id="sidebar">
-    <div class="rail-brand">
-      <a href="/files" class="brand-link" aria-label="CloudNest 我的文件">
-        <span class="brand-mark">{% include "icons/cloud.svg" %}</span>
-        <span class="brand-text">CloudNest</span>
-      </a>
-      <button class="icon-btn rail-close" type="button" data-sidebar-close aria-label="关闭导航">{% include "icons/x.svg" %}</button>
-    </div>
-    <nav class="rail-nav" aria-label="主导航">
-      <a class="nav-link{% if page.common.active == "files" %} is-active{% endif %}" href="/files"{% if page.common.active == "files" %} aria-current="page"{% endif %}>
-        <span class="nav-icon">{% include "icons/folder.svg" %}</span><span>我的文件</span>
-      </a>
-      <a class="nav-link{% if page.common.active == "shares" %} is-active{% endif %}" href="/shares"{% if page.common.active == "shares" %} aria-current="page"{% endif %}>
-        <span class="nav-icon">{% include "icons/link.svg" %}</span><span>分享链接</span>
-      </a>
-      <a class="nav-link{% if page.common.active == "trash" %} is-active{% endif %}" href="/trash"{% if page.common.active == "trash" %} aria-current="page"{% endif %}>
-        <span class="nav-icon">{% include "icons/trash.svg" %}</span><span>回收站</span>
-        {% if page.common.trash_count > 0 %}<span class="nav-badge">{{ page.common.trash_count }}</span>{% endif %}
-      </a>
-      {% if page.common.is_admin %}
-      <span class="nav-divider"></span>
-      <a class="nav-link{% if page.common.active == "admin" %} is-active{% endif %}" href="/admin"{% if page.common.active == "admin" %} aria-current="page"{% endif %}>
-        <span class="nav-icon">{% include "icons/settings.svg" %}</span><span>用户与存储</span>
-      </a>
-      <a class="nav-link{% if page.common.active == "settings" %} is-active{% endif %}" href="/admin/settings"{% if page.common.active == "settings" %} aria-current="page"{% endif %}>
-        <span class="nav-icon">{% include "icons/settings.svg" %}</span><span>站点设置</span>
-      </a>
-      {% endif %}
-    </nav>
-    <div class="rail-spacer"></div>
-    <div class="storage-block">
-      <div class="storage-head">
-        <span>存储</span>
-        <span class="storage-value">{{ page.common.used_text }} / {{ page.common.quota_text }}</span>
+  <aside class="sidebar" id="sidebar" :data-open="drawer">
+    <div class="sidebar-inner">
+      <div class="brand">
+        <a class="brand-link" href="/files" aria-label="CloudNest 我的文件">
+          <span class="brand-mark">{% include "icons/cloud.svg" %}</span>
+          <span class="brand-name">CloudNest</span>
+        </a>
+        <button class="icon-btn sidebar-close" type="button" @click="closeDrawer()" aria-label="关闭导航">{% include "icons/x.svg" %}</button>
       </div>
-      <div class="meter"><div class="meter-fill" style="width: {{ page.common.used_percent }}%"></div></div>
-      <p class="storage-hint">{% if page.common.quota_unlimited %}未设上限 · {{ page.common.file_count }} 个文件{% else %}已用 {{ page.common.used_percent }}% · {{ page.common.file_count }} 个文件{% endif %}</p>
-    </div>
-    <div class="rail-account">
-      <a href="/account" class="account-link">
-        <span class="avatar">{{ page.common.initial }}</span>
-        <span class="account-meta">
-          <span class="account-name">{{ page.common.username }}</span>
-          <span class="account-role">{% if page.common.is_admin %}管理员{% else %}用户{% endif %}</span>
-        </span>
-      </a>
-      <form method="post" action="/logout" class="logout-form">
-        <input type="hidden" name="csrf" value="{{ page.common.csrf }}">
-        <button class="icon-btn" type="submit" title="退出登录" aria-label="退出登录">{% include "icons/logout.svg" %}</button>
-      </form>
+
+      <nav class="side-nav" aria-label="主导航">
+        <a class="nav-item{% if page.common.active == "files" %} is-active{% endif %}" href="/files"{% if page.common.active == "files" %} aria-current="page"{% endif %}>
+          {% include "icons/folder.svg" %}<span>我的文件</span>
+        </a>
+        <a class="nav-item{% if page.common.active == "shares" %} is-active{% endif %}" href="/shares"{% if page.common.active == "shares" %} aria-current="page"{% endif %}>
+          {% include "icons/link.svg" %}<span>分享链接</span>
+        </a>
+        <a class="nav-item{% if page.common.active == "trash" %} is-active{% endif %}" href="/trash"{% if page.common.active == "trash" %} aria-current="page"{% endif %}>
+          {% include "icons/trash.svg" %}<span>回收站</span>
+          {% if page.common.trash_count > 0 %}<span class="nav-badge">{{ page.common.trash_count }}</span>{% endif %}
+        </a>
+        {% if page.common.is_admin %}
+        <span class="side-divider" aria-hidden="true"></span>
+        <a class="nav-item{% if page.common.active == "admin" %} is-active{% endif %}" href="/admin"{% if page.common.active == "admin" %} aria-current="page"{% endif %}>
+          {% include "icons/users.svg" %}<span>用户与存储</span>
+        </a>
+        <a class="nav-item{% if page.common.active == "settings" %} is-active{% endif %}" href="/admin/settings"{% if page.common.active == "settings" %} aria-current="page"{% endif %}>
+          {% include "icons/settings.svg" %}<span>站点设置</span>
+        </a>
+        {% endif %}
+      </nav>
+
+      <span class="side-spacer"></span>
+
+      <div class="storage-card">
+        <div class="storage-line"><span>存储</span><strong>{{ page.common.used_text }} / {{ page.common.quota_text }}</strong></div>
+        <div class="meter"><div class="meter-fill" style="width: {{ page.common.used_percent }}%"></div></div>
+        <p class="storage-hint">{% if page.common.quota_unlimited %}未设上限 · {{ page.common.file_count }} 个文件{% else %}已用 {{ page.common.used_percent }}% · {{ page.common.file_count }} 个文件{% endif %}</p>
+      </div>
+
+      <div class="account-card">
+        <a class="account-link" href="/account">
+          <span class="avatar">{{ page.common.initial }}</span>
+          <span class="account-meta">
+            <span class="account-name">{{ page.common.username }}</span>
+            <span class="account-role">{% if page.common.is_admin %}管理员{% else %}用户{% endif %}</span>
+          </span>
+        </a>
+        <form method="post" action="/logout">
+          <input type="hidden" name="csrf" value="{{ page.common.csrf }}">
+          <button class="icon-btn" type="submit" title="退出登录" aria-label="退出登录">{% include "icons/logout.svg" %}</button>
+        </form>
+      </div>
     </div>
   </aside>
-  <div class="sidebar-backdrop" data-sidebar-close></div>
 
-  <main class="main">
+  <div class="sidebar-backdrop" x-show="drawer" x-cloak @click="closeDrawer()" aria-hidden="true"></div>
+
+  <main class="main" id="main-content">
     <header class="topbar">
-      <button class="icon-btn menu-btn" type="button" data-sidebar-open aria-label="打开导航" aria-controls="sidebar" aria-expanded="false">{% include "icons/menu.svg" %}</button>
-      <form class="top-search" action="/files" method="get" role="search">
-        <span class="search-icon">{% include "icons/search.svg" %}</span>
-        <input type="search" name="q" placeholder="搜索文件" aria-label="搜索文件" autocomplete="off">
+      <button class="icon-btn menu-btn" type="button" @click="openDrawer()" aria-label="打开导航" aria-controls="sidebar">{% include "icons/menu.svg" %}</button>
+      <form class="search" action="/files" method="get" role="search">
+        {% include "icons/search.svg" %}
+        <input type="search" name="q" placeholder="搜索文件与文件夹" aria-label="搜索文件" autocomplete="off">
       </form>
       <div class="topbar-actions">
-        <button class="icon-btn theme-toggle" type="button" data-theme-toggle title="切换主题" aria-label="切换浅色/深色主题">
-          <span class="theme-icon-light">{% include "icons/sun.svg" %}</span>
-          <span class="theme-icon-dark">{% include "icons/moon.svg" %}</span>
+        <button class="icon-btn theme-toggle" type="button" @click="toggleTheme()" title="切换主题" aria-label="切换浅色/深色主题">
+          <span class="theme-sun">{% include "icons/sun.svg" %}</span>
+          <span class="theme-moon">{% include "icons/moon.svg" %}</span>
         </button>
       </div>
     </header>
+
     {% if let Some(flash) = page.common.flash %}
-    <div class="flash flash-{{ flash.kind }}" role="status">
-      <span class="flash-mark"></span>
-      <span>{{ flash.message }}</span>
-      <button type="button" class="flash-close" data-dismiss aria-label="关闭">&times;</button>
+    <div class="toasts" aria-live="polite">
+      <div class="toast toast-{{ flash.kind }}" data-toast role="status">
+        <span class="toast-mark"></span>
+        <span>{{ flash.message }}</span>
+        <button type="button" data-toast-close aria-label="关闭">&times;</button>
+      </div>
     </div>
     {% endif %}
+
     <div class="content">
       {% block content %}{% endblock %}
     </div>
   </main>
 </div>
+
+<div class="drop-hint" aria-hidden="true">松开鼠标，文件将上传到当前文件夹</div>
 <div id="modal" class="modal-host" aria-live="polite"></div>
+
+<div class="modal-host" :data-open="confirm.open" x-cloak role="dialog" aria-modal="true" aria-labelledby="confirm-title" id="confirm-host">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <h2 id="confirm-title">确认操作</h2>
+        <p x-text="confirm.message"></p>
+      </div>
+      <button class="icon-btn" type="button" @click="closeConfirm()" aria-label="关闭">{% include "icons/close.svg" %}</button>
+    </div>
+    <p class="modal-note">这个操作会立即生效。</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" type="button" @click="closeConfirm()">取消</button>
+      <button class="btn btn-primary" type="button" @click="submitConfirm()">确认</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

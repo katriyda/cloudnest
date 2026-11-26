@@ -1,45 +1,44 @@
 {% extends "base.html" %}
 {% block title %}{{ page.name }} · CloudNest{% endblock %}
 {% block content %}
-<div class="page-strip preview-head">
-  <div class="page-title-wrap">
+<div class="page-head">
+  <div>
     <nav class="crumbs" aria-label="当前位置">
       <a class="crumb" href="{{ page.back_url }}">我的文件</a>
       <span class="crumb-sep" aria-hidden="true">/</span>
       <span class="crumb is-current">{{ page.name }}</span>
     </nav>
-    <h1 class="preview-name">{{ page.name }}</h1>
-    <p class="page-note">{{ page.size_text }}</p>
+    <h1 class="page-title" style="overflow-wrap: anywhere;">{{ page.name }}</h1>
+    <p class="page-sub">{{ page.size_text }}</p>
   </div>
   <div class="head-actions">
-    <a class="btn btn-primary btn-small" href="{{ page.download_url }}">{% include "icons/download.svg" %}下载</a>
+    <a class="btn btn-primary btn-sm" href="{{ page.download_url }}">{% include "icons/download.svg" %}下载</a>
   </div>
 </div>
 
-<div class="preview-shell preview-{{ page.kind }}">
+<div class="preview-shell">
   {% if page.kind == "image" %}
-  <div class="preview-image-wrap"><img src="{{ page.raw_url }}" alt="{{ page.name }}"></div>
+  <div class="preview-media"><img src="{{ page.raw_url }}" alt="{{ page.name }}"></div>
   {% else if page.kind == "video" %}
-  <div class="preview-media"><video src="{{ page.raw_url }}" controls preload="metadata" playsinline></video></div>
+  <div class="preview-media" style="background: #000;"><video src="{{ page.raw_url }}" controls preload="metadata" playsinline style="width: 100%; max-height: 72vh;"></video></div>
   {% else if page.kind == "audio" %}
-  <div class="audio-card">
-    <span class="audio-icon">{% include "icons/play.svg" %}</span>
-    <div class="audio-info"><h2>{{ page.name }}</h2><p>{{ page.size_text }}</p></div>
+  <div class="preview-media" style="flex-direction: column; gap: var(--s-3);">
+    <span class="empty-ico">{% include "icons/play.svg" %}</span>
     <audio src="{{ page.raw_url }}" controls preload="metadata"></audio>
   </div>
   {% else if page.kind == "pdf" %}
   <iframe class="preview-frame" src="{{ page.raw_url }}" title="{{ page.name }}"></iframe>
   {% else if page.kind == "text" %}
-  <div class="text-preview-wrap">
-    {% if page.text_truncated %}<p class="preview-note">文件较大，仅显示前 1 MB。可下载查看完整内容。</p>{% endif %}
-    <pre class="text-preview">{{ page.text_content }}</pre>
+  <div class="text-preview">
+    {% if page.text_truncated %}<p class="field-hint" style="margin: 0 0 8px;">文件较大，仅显示前 1 MB。可下载查看完整内容。</p>{% endif %}
+    <pre style="margin: 0; white-space: pre-wrap;">{{ page.text_content }}</pre>
   </div>
   {% else %}
-  <div class="preview-fallback">
-    <span class="empty-mark">不支持预览</span>
+  <div class="empty" style="border: 0;">
+    <span class="empty-ico">{% include "icons/file.svg" %}</span>
     <h2>该格式暂不支持在线预览</h2>
     <p>下载后使用本地应用打开。</p>
-    <a class="btn btn-primary btn-small" href="{{ page.download_url }}">下载文件</a>
+    <div class="actions"><a class="btn btn-primary btn-sm" href="{{ page.download_url }}">下载文件</a></div>
   </div>
   {% endif %}
 </div>

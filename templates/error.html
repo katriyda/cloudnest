@@ -7,25 +7,22 @@
 <link rel="stylesheet" href="/static/app.css">
 <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 <script src="/static/theme.js"></script>
+<script src="/static/app.js" defer></script>
+<script src="/static/alpine.min.js" defer></script>
 </head>
-<body class="auth-body">
-<div class="auth-shell">
-  <section class="auth-facts">
-    <div class="auth-brand">
-      <a href="/" class="brand-link"><span class="brand-mark">{% include "icons/cloud.svg" %}</span><span class="brand-text">CloudNest</span></a>
-    </div>
-    <div class="auth-facts-body">
-      <h1>操作没有完成</h1>
-      <p class="auth-lede">可以回到文件列表再试一次；如果一直没有成功，请确认自己已经登录，或者联系管理员。</p>
-    </div>
-  </section>
-  <section class="auth-pane">
-    <div class="auth-card error-card">
-      <h1>{{ title }}</h1>
-      <p>{{ message }}</p>
-      <a class="btn btn-primary" href="/files">返回我的文件</a>
-    </div>
-  </section>
+<body class="auth-body" x-data="app">
+<button class="icon-btn auth-theme theme-toggle" type="button" @click="toggleTheme()" aria-label="切换浅色/深色主题">
+  <span x-show="theme === 'light'">{% include "icons/sun.svg" %}</span>
+  <span x-show="theme === 'dark'" x-cloak>{% include "icons/moon.svg" %}</span>
+</button>
+<div class="auth-pane" style="min-height: 100vh; flex-direction: column; gap: var(--s-5);">
+  <a class="auth-brand" href="/files"><span class="brand-mark">{% include "icons/cloud.svg" %}</span><span class="brand-name">CloudNest</span></a>
+  <div class="auth-card error-card">
+    <p class="error-code">{{ status }}</p>
+    <h1 class="error-title">{{ title }}</h1>
+    <p class="error-text">{{ message }}</p>
+    <a class="btn btn-primary" href="/files">返回我的文件</a>
+  </div>
 </div>
 </body>
 </html>

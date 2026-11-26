@@ -1,18 +1,18 @@
 {% extends "base.html" %}
 {% block title %}账户设置 · CloudNest{% endblock %}
 {% block content %}
-<div class="page-strip">
-  <div class="page-title-wrap">
-    <h1>账户设置</h1>
-    <p class="page-note">{{ page.common.username }} · 创建于 {{ page.created_text }}</p>
+<div class="page-head">
+  <div>
+    <h1 class="page-title">账户设置</h1>
+    <p class="page-sub">{{ page.common.username }} · 创建于 {{ page.created_text }}</p>
   </div>
 </div>
 
 <div class="account-grid">
   <section class="panel">
     <div class="panel-head"><h2>账户</h2><span class="panel-note">{% if page.common.is_admin %}管理员{% else %}普通用户{% endif %}</span></div>
-    <div class="profile-block">
-      <span class="avatar avatar-large">{{ page.common.initial }}</span>
+    <div class="profile-row">
+      <span class="avatar avatar-lg">{{ page.common.initial }}</span>
       <div>
         <h3>{{ page.common.username }}</h3>
         <p>{{ page.user_file_count }} 个文件 · 已用 {{ page.common.used_text }}</p>
@@ -24,8 +24,8 @@
       <div class="detail-row"><span>创建时间</span><strong>{{ page.created_text }}</strong></div>
     </div>
     {% if !page.common.quota_unlimited %}
-    <div class="meter meter-small"><div class="meter-fill" style="width: {{ page.common.used_percent }}%"></div></div>
-    <p class="field-hint">可用空间由管理员分配。</p>
+    <div class="meter" style="margin-top: var(--s-3);"><div class="meter-fill" style="width: {{ page.common.used_percent }}%"></div></div>
+    <p class="field-hint" style="margin-top: 6px;">可用空间由管理员分配。</p>
     {% endif %}
   </section>
 

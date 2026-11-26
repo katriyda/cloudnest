@@ -8,39 +8,37 @@
 <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 <script src="/static/theme.js"></script>
 <script src="/static/app.js" defer></script>
+<script src="/static/alpine.min.js" defer></script>
 </head>
-<body class="auth-body">
+<body class="auth-body" x-data="app">
+<button class="icon-btn auth-theme theme-toggle" type="button" @click="toggleTheme()" aria-label="切换浅色/深色主题">
+  <span x-show="theme === 'light'">{% include "icons/sun.svg" %}</span>
+  <span x-show="theme === 'dark'" x-cloak>{% include "icons/moon.svg" %}</span>
+</button>
 <div class="auth-shell">
-  <section class="auth-facts">
+  <section class="auth-side">
     <div class="auth-brand">
-      <a href="/" class="brand-link">
-        <span class="brand-mark">{% include "icons/cloud.svg" %}</span>
-        <span class="brand-text">CloudNest</span>
-      </a>
-      <button class="icon-btn theme-toggle" type="button" data-theme-toggle aria-label="切换主题">
-        <span class="theme-icon-light">{% include "icons/sun.svg" %}</span>
-        <span class="theme-icon-dark">{% include "icons/moon.svg" %}</span>
-      </button>
+      <span class="brand-mark">{% include "icons/cloud.svg" %}</span>
+      <span class="brand-name">CloudNest</span>
     </div>
-    <div class="auth-facts-body">
+    <div class="auth-hero">
       <h1>你的个人网盘</h1>
       <p class="auth-lede">上传、整理、预览和分享文件，所有内容都在你自己的网盘里。</p>
       <ul class="fact-list">
-        <li><span class="fact-num">01</span><span>上传、下载、在线预览与文件夹管理。</span></li>
-        <li><span class="fact-num">02</span><span>分享链接可以设置提取密码、有效期和下载次数。</span></li>
-        <li><span class="fact-num">03</span><span>删除的文件先进入回收站，管理员可以给每个账户设置存储空间。</span></li>
+        <li><span class="fact-num">01</span><span><strong>私有空间</strong><br>文件只属于你，随时存取，不限设备。</span></li>
+        <li><span class="fact-num">02</span><span><strong>分享链接</strong><br>一键生成访问链接，可设密码与有效期。</span></li>
+        <li><span class="fact-num">03</span><span><strong>安全回收</strong><br>误删可恢复，永久删除后释放存储空间。</span></li>
       </ul>
     </div>
   </section>
-
   <section class="auth-pane">
     <div class="auth-card">
       <div class="auth-head">
         <h2>登录</h2>
-        <p>使用管理员分配的账户</p>
+        <p>使用管理员分配的账户进入网盘</p>
       </div>
       {% if let Some(error) = page.error %}
-      <div class="flash flash-err" role="alert"><span class="flash-mark"></span><span>{{ error }}</span></div>
+      <p class="update-state is-error" role="alert" style="margin-bottom: var(--s-4);">{{ error }}</p>
       {% endif %}
       <form method="post" action="/login" class="stack-form">
         <input type="hidden" name="next" value="{{ page.next }}">
@@ -54,7 +52,7 @@
         </label>
         <button class="btn btn-primary btn-block" type="submit">进入网盘</button>
       </form>
-      <p class="auth-footnote">尚未初始化？访问 <a href="/setup">创建管理员账户</a>。</p>
+      <p class="auth-footnote">尚未初始化？<a href="/setup">创建管理员账户</a>。</p>
     </div>
   </section>
 </div>

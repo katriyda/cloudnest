@@ -20,6 +20,7 @@ const APP_CSS: &str = include_str!("../../static/app.css");
 const APP_JS: &str = include_str!("../../static/app.js");
 const THEME_JS: &str = include_str!("../../static/theme.js");
 const HTMX_JS: &str = include_str!("../../static/htmx.min.js");
+const ALPINE_JS: &str = include_str!("../../static/alpine.min.js");
 const FAVICON: &str = include_str!("../../static/favicon.svg");
 const FONT_UI_400: &[u8] =
     include_bytes!("../../static/fonts/space-grotesk-latin-400-normal.woff2");
@@ -57,6 +58,7 @@ pub fn router(state: AppState) -> Router {
         .route("/static/app.js", get(asset_js))
         .route("/static/theme.js", get(asset_theme))
         .route("/static/htmx.min.js", get(asset_htmx))
+        .route("/static/alpine.min.js", get(asset_alpine))
         .route("/static/favicon.svg", get(asset_favicon))
         .route(
             "/static/fonts/space-grotesk-latin-400-normal.woff2",
@@ -293,6 +295,19 @@ async fn asset_theme() -> Response {
 
 async fn asset_htmx() -> Response {
     let mut response = HTMX_JS.into_response();
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/javascript; charset=utf-8"),
+    );
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("public, max-age=0, must-revalidate"),
+    );
+    response
+}
+
+async fn asset_alpine() -> Response {
+    let mut response = ALPINE_JS.into_response();
     response.headers_mut().insert(
         header::CONTENT_TYPE,
         HeaderValue::from_static("application/javascript; charset=utf-8"),

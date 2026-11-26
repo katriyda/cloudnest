@@ -11,6 +11,7 @@ CloudNest 是一个轻量、可靠的个人云盘：单个静态二进制 + SQLi
 ## 功能
 
 - **单二进制部署**：Rust 编写的服务端，无外部运行时依赖；Linux x86_64 / aarch64 静态构建。
+- **界面技术**：Askama 服务端模板 + htmx 局部刷新 + Alpine.js 3.17.5（CSP 构建，不需要 `unsafe-eval`），浅色/深色主题与移动端抽屉导航。
 - **文件管理**：上传、下载、新建文件夹、重命名、移动、删除；大文件自动分片上传并支持断点续传；支持列表/网格视图、按名称/大小/时间排序与搜索。
 - **回收站**：删除的文件进入回收站，可查看并恢复，避免误删。
 - **在线预览**：图片、视频、音频、文本等常见类型可直接预览。
@@ -341,5 +342,5 @@ THIRD_PARTY_NOTICES.md         第三方软件许可声明
 
 - [docs/DEPLOY.md](docs/DEPLOY.md)：部署、升级、备份恢复、故障排查
 - [docs/SECURITY.md](docs/SECURITY.md)：安全设计、加固清单与漏洞报告
-- [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)：第三方软件许可（htmx 4 采用 0BSD，字体采用 SIL OFL 1.1）
+- [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)：第三方软件许可（htmx 4 采用 0BSD、Alpine.js 3.17.5 CSP 构建采用 MIT，字体采用 SIL OFL 1.1）
 - [packaging/cloudnest.service](packaging/cloudnest.service)：systemd 服务单元

@@ -1,98 +1,78 @@
 {% extends "base.html" %}
 {% block title %}用户与存储 · CloudNest{% endblock %}
 {% block content %}
-<div class="page-strip">
-  <div class="page-title-wrap">
-    <h1>用户与存储</h1>
-    <p class="page-note">共 {{ page.users.len() }} 个账户 · 禁用后立即失去访问权限</p>
+<div class="page-head">
+  <div>
+    <h1 class="page-title">用户与存储</h1>
+    <p class="page-sub">共 {{ page.users.len() }} 个账户 · 禁用后立即失去访问权限</p>
   </div>
-  <div class="head-actions">
-    <a class="btn btn-small" href="/admin/settings">站点设置</a>
-  </div>
+  <div class="head-actions"><a class="btn btn-sm" href="/admin/settings">站点设置</a></div>
 </div>
 
-<div class="stat-strip">
-  <div class="stat-cell">
-    <span class="stat-label">用户</span>
-    <span class="stat-value">{{ page.total_users }}</span>
-    <span class="stat-hint">个账户</span>
-  </div>
-  <div class="stat-cell">
-    <span class="stat-label">文件</span>
-    <span class="stat-value">{{ page.total_files }}</span>
-    <span class="stat-hint">个文件</span>
-  </div>
-  <div class="stat-cell">
-    <span class="stat-label">已用存储</span>
-    <span class="stat-value">{{ page.total_size_text }}</span>
-    <span class="stat-hint">全部用户</span>
-  </div>
-  <div class="stat-cell">
-    <span class="stat-label">已分配空间</span>
-    <span class="stat-value">{{ page.total_quota_text }}</span>
-    <span class="stat-hint">不含不限额账户</span>
-  </div>
+<div class="stat-grid">
+  <div class="stat"><span class="stat-label">用户</span><span class="stat-value">{{ page.total_users }}</span><span class="stat-hint">个账户</span></div>
+  <div class="stat"><span class="stat-label">文件</span><span class="stat-value">{{ page.total_files }}</span><span class="stat-hint">个文件</span></div>
+  <div class="stat"><span class="stat-label">已用存储</span><span class="stat-value">{{ page.total_size_text }}</span><span class="stat-hint">全部用户</span></div>
+  <div class="stat"><span class="stat-label">已分配空间</span><span class="stat-value">{{ page.total_quota_text }}</span><span class="stat-hint">不含不限额账户</span></div>
 </div>
 
-<div class="admin-stack">
+<div class="settings-stack">
   <section class="panel">
     <div class="panel-head"><h2>账户列表</h2><span class="panel-note">单位为 GB，0 表示不限制</span></div>
     <div class="table-wrap">
       <table class="data-table">
         <thead>
-          <tr><th>用户</th><th>存储</th><th>文件</th><th>创建</th><th>状态</th><th class="right">操作</th></tr>
+          <tr><th>用户</th><th>存储</th><th>文件</th><th>创建</th><th>状态</th><th class="num">操作</th></tr>
         </thead>
         <tbody>
           {% for user in page.users %}
           <tr>
             <td data-label="用户">
               <div class="user-cell">
-                <span class="avatar avatar-small">{{ user.initial }}</span>
+                <span class="avatar avatar-sm">{{ user.initial }}</span>
                 <span>
                   <strong>{{ user.username }}</strong>
-                  <span class="cell-sub">{% if user.is_admin %}管理员{% else %}用户{% endif %}{% if user.is_self %} · 当前账户{% endif %}</span>
+                  <span class="file-sub">{% if user.is_admin %}管理员{% else %}用户{% endif %}{% if user.is_self %} · 当前账户{% endif %}</span>
                 </span>
               </div>
             </td>
             <td data-label="存储">
-              <div class="quota-cell">
+              <div class="quota">
                 <span>{{ user.used_text }} / {% if user.quota_unlimited %}不限{% else %}{{ user.quota_text }}{% endif %}</span>
                 {% if !user.quota_unlimited %}
-                <div class="meter meter-small"><div class="meter-fill" style="width: {{ user.percent }}%"></div></div>
+                <div class="meter"><div class="meter-fill" style="width: {{ user.percent }}%"></div></div>
                 {% endif %}
               </div>
             </td>
-            <td class="muted" data-label="文件">{{ user.file_count }}</td>
-            <td class="muted" data-label="创建">{{ user.created_text }}</td>
+            <td class="cell" data-label="文件">{{ user.file_count }}</td>
+            <td class="cell" data-label="创建">{{ user.created_text }}</td>
             <td data-label="状态">{% if user.disabled %}<span class="badge badge-muted">已禁用</span>{% else %}<span class="badge badge-ok">正常</span>{% endif %}</td>
             <td data-label="操作">
-              <div class="row-actions">
-                <form method="post" action="/admin/users/quota" class="inline-form quota-form">
+              <div class="row-actions-cell">
+                <form method="post" action="/admin/users/quota" class="inline-form">
                   <input type="hidden" name="csrf" value="{{ page.common.csrf }}">
                   <input type="hidden" name="id" value="{{ user.id }}">
-                  <input class="input-tiny" type="number" name="quota_gb" min="0" max="1048576" step="1" value="{{ user.quota_gb }}" aria-label="存储空间 GB">
-                  <button class="btn btn-tiny" type="submit">设置</button>
+                  <input class="input-mini" type="number" name="quota_gb" min="0" max="1048576" step="1" value="{{ user.quota_gb }}" aria-label="存储空间 GB">
+                  <button class="btn btn-sm" type="submit">设置</button>
                 </form>
                 {% if !user.is_self %}
                 <form method="post" action="/admin/users/toggle" class="inline-form">
                   <input type="hidden" name="csrf" value="{{ page.common.csrf }}">
                   <input type="hidden" name="id" value="{{ user.id }}">
-                  <button class="btn btn-tiny btn-ghost" type="submit">{% if user.disabled %}启用{% else %}禁用{% endif %}</button>
+                  <button class="btn btn-ghost btn-sm" type="submit">{% if user.disabled %}启用{% else %}禁用{% endif %}</button>
                 </form>
                 {% endif %}
-              </div>
-              <div class="row-actions row-actions-secondary">
-                <form method="post" action="/admin/users/password" class="inline-form reset-form" data-confirm="确定重置 {{ user.username }} 的密码吗？该用户需要在所有设备上重新登录。">
+                <form method="post" action="/admin/users/password" class="inline-form" data-confirm="确定重置 {{ user.username }} 的密码吗？该用户需要在所有设备上重新登录。">
                   <input type="hidden" name="csrf" value="{{ page.common.csrf }}">
                   <input type="hidden" name="id" value="{{ user.id }}">
-                  <input class="input-tiny" type="text" name="password" minlength="8" maxlength="128" placeholder="新密码" required aria-label="新密码">
-                  <button class="btn btn-tiny btn-ghost" type="submit">重置</button>
+                  <input class="input-mini" type="text" name="password" minlength="8" maxlength="128" placeholder="新密码" required aria-label="新密码">
+                  <button class="btn btn-ghost btn-sm" type="submit">重置</button>
                 </form>
                 {% if !user.is_self %}
                 <form method="post" action="/admin/users/delete" class="inline-form" data-confirm="确定删除用户 {{ user.username }} 吗？其文件和分享将被永久删除。">
                   <input type="hidden" name="csrf" value="{{ page.common.csrf }}">
                   <input type="hidden" name="id" value="{{ user.id }}">
-                  <button class="btn btn-tiny btn-danger" type="submit">删除</button>
+                  <button class="btn btn-danger btn-sm" type="submit">删除</button>
                 </form>
                 {% endif %}
               </div>
@@ -106,11 +86,11 @@
 
   <section class="panel">
     <div class="panel-head"><h2>新建账户</h2></div>
-    <form method="post" action="/admin/users/create" class="create-user-form">
+    <form method="post" action="/admin/users/create" class="form-grid">
       <input type="hidden" name="csrf" value="{{ page.common.csrf }}">
       <label class="field">
         <span class="field-label">用户名</span>
-        <input type="text" name="username" required minlength="3" maxlength="32" placeholder="请输入用户名" spellcheck="false" autocomplete="off">
+        <input type="text" name="username" required minlength="3" maxlength="32" placeholder="例如 zhao" spellcheck="false" autocomplete="off">
         <span class="field-hint">字母、数字、下划线、点和短横线</span>
       </label>
       <label class="field">
