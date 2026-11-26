@@ -328,6 +328,18 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 ```
 
+网页端到端测试用真实 Chromium 走一遍界面功能（上传、分享、回收站、后台、移动端等）：
+
+```bash
+cargo build
+cd tests/e2e
+npm install
+npx playwright install chromium
+node ui.mjs
+```
+
+脚本会自己拉起临时实例（临时数据目录 + 随机端口），不会碰现有数据。CI 也会运行这套测试，详见 [tests/e2e/README.md](tests/e2e/README.md)。
+
 ## 目录结构
 
 ```text
@@ -337,6 +349,7 @@ scripts/install.sh              一键安装脚本
 packaging/cloudnest.service     systemd 单元
 packaging/config.toml.example   配置示例
 .github/workflows/              CI 与发布流程
+tests/e2e/                      网页端到端测试（Playwright）
 docs/DEPLOY.md                  部署、升级、备份恢复与故障排查
 docs/SECURITY.md                安全设计与加固说明
 THIRD_PARTY_NOTICES.md         第三方软件许可声明
