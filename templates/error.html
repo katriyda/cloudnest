@@ -4,11 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ status }} · CloudNest</title>
-<link rel="stylesheet" href="/static/app.css">
-<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
-<script src="/static/theme.js"></script>
-<script src="/static/app.js" defer></script>
-<script src="/static/alpine.min.js" defer></script>
+<meta name="cloudnest-assets" content="{{ assets.version }}">
+<link rel="stylesheet" href="{{ assets.app_css }}">
+<link rel="icon" href="{{ assets.favicon }}" type="image/svg+xml">
+<script src="{{ assets.theme_js }}"></script>
+<script src="{{ assets.app_js }}" defer></script>
+<script src="{{ assets.alpine_js }}" defer></script>
 </head>
 <body class="auth-body" x-data="app">
 <button class="icon-btn auth-theme theme-toggle" type="button" @click="toggleTheme()" aria-label="切换浅色/深色主题">

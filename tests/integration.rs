@@ -1666,3 +1666,166 @@ async fn oversized_form_body_is_rejected() {
     .await;
     assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
 }
+
+// ---- 前端资源版本化与缓存策略回归测试 ----
+
+fn header_text(response: &Response, name: header::HeaderName) -> String {
+    response
+        .headers()
+        .get(name)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default()
+        .to_string()
+}
+
+#[tokio::test]
+async fn pages_reference_versioned_assets_and_forbid_caching() {
+    let t = test_app().await;
+    let version = cloudnest::assets::ASSET_VERSION;
+
+    let response = send(&t.app, Method::GET, "/setup", None, Body::empty(), None).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let cache_control = header_text(&response, header::CACHE_CONTROL);
+    let pragma = header_text(&response, header::PRAGMA);
+    let expires = header_text(&response, header::EXPIRES);
+    let cdn = header_text(
+        &response,
+        header::HeaderName::from_static("cdn-cache-control"),
+    );
+    let html = body_text(response).await;
+
+    // 页面必须始终回源，否则旧 HTML 会一直引用旧资源地址。
+    assert!(
+        cache_control.contains("no-store"),
+        "cache-control: {cache_control}"
+    );
+    assert!(
+        cache_control.contains("no-cache"),
+        "cache-control: {cache_control}"
+    );
+    assert_eq!(pragma, "no-cache");
+    assert_eq!(expires, "Thu, 01 Jan 1970 00:00:00 GMT");
+    assert_eq!(cdn, "no-store");
+
+    // 页面里的资源地址带内容哈希，升级后不会再命中旧 URL。
+    let css = format!("/static/v/{version}/app.css");
+    assert!(html.contains(&css), "versioned css url missing");
+    assert!(html.contains(&format!("/static/v/{version}/app.js")));
+    assert!(
+        !html.contains("href=\"/static/app.css\""),
+        "fixed css url must not be referenced anymore"
+    );
+    assert!(
+        html.contains(&format!("name=\"cloudnest-assets\" content=\"{version}\"")),
+        "asset version meta missing"
+    );
+}
+
+#[tokio::test]
+async fn versioned_assets_are_immutable_and_support_etag_revalidation() {
+    let t = test_app().await;
+    let version = cloudnest::assets::ASSET_VERSION;
+
+    let response = send(
+        &t.app,
+        Method::GET,
+        &format!("/static/v/{version}/app.css"),
+        None,
+        Body::empty(),
+        None,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let cache_control = header_text(&response, header::CACHE_CONTROL);
+    let etag = header_text(&response, header::ETAG);
+    assert_eq!(cache_control, "public, max-age=31536000, immutable");
+    assert!(etag.starts_with('"') && etag.ends_with('"'), "etag: {etag}");
+    let html = body_text(response).await;
+    assert!(html.contains(":root"), "app.css body served");
+
+    // 带 If-None-Match 的再次请求走 304，避免重复传输。
+    let request = Request::builder()
+        .uri(format!("/static/v/{version}/app.css"))
+        .header(header::IF_NONE_MATCH, &etag)
+        .body(Body::empty())
+        .unwrap();
+    let response = t.app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_MODIFIED);
+    assert_eq!(header_text(&response, header::ETAG), etag);
+    let body = to_bytes(response.into_body(), 64).await.unwrap();
+    assert!(body.is_empty(), "304 must not carry a body");
+
+    // 字体同样按内容哈希提供。
+    let response = send(
+        &t.app,
+        Method::GET,
+        &format!("/static/v/{version}/fonts/space-grotesk-latin-400-normal.woff2"),
+        None,
+        Body::empty(),
+        None,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(header_text(&response, header::CONTENT_TYPE), "font/woff2");
+}
+
+#[tokio::test]
+async fn legacy_and_outdated_asset_urls_redirect_to_current_version() {
+    let t = test_app().await;
+    let version = cloudnest::assets::ASSET_VERSION;
+    let current = format!("/static/v/{version}/app.js");
+
+    // 升级前缓存的旧 HTML 只会请求固定地址：必须跳到当前版本，且跳转不可缓存。
+    let response = send(
+        &t.app,
+        Method::GET,
+        "/static/app.js",
+        None,
+        Body::empty(),
+        None,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::TEMPORARY_REDIRECT);
+    assert_eq!(header_text(&response, header::LOCATION), current);
+    assert_eq!(header_text(&response, header::CACHE_CONTROL), "no-store");
+
+    let response = send(
+        &t.app,
+        Method::GET,
+        "/static/fonts/ibm-plex-mono-latin-500-normal.woff2",
+        None,
+        Body::empty(),
+        None,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::TEMPORARY_REDIRECT);
+    assert_eq!(
+        header_text(&response, header::LOCATION),
+        format!("/static/v/{version}/fonts/ibm-plex-mono-latin-500-normal.woff2")
+    );
+
+    // 旧版本号（例如浏览器还留着上一版页面）也回到当前版本，不会 404。
+    let response = send(
+        &t.app,
+        Method::GET,
+        "/static/v/000000000000/app.js",
+        None,
+        Body::empty(),
+        None,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::TEMPORARY_REDIRECT);
+    assert_eq!(header_text(&response, header::LOCATION), current);
+
+    // 未知资源仍然 404，避免把任意路径都当成跳转。
+    let response = send(
+        &t.app,
+        Method::GET,
+        &format!("/static/v/{version}/missing.js"),
+        None,
+        Body::empty(),
+        None,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}

@@ -1,3 +1,4 @@
+use crate::assets::Assets;
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::util;
@@ -24,6 +25,8 @@ pub struct Common {
     pub used_bytes: i64,
     pub quota_bytes: i64,
     pub file_count: i64,
+    /// 带内容哈希的前端资源地址（每次发布都会变化）。
+    pub assets: Assets,
 }
 
 /// 提示信息来自 URL 查询参数，只保留可见字符并限制长度，避免被拼接成长篇欺骗文案。
@@ -108,6 +111,7 @@ pub async fn build_common(
         used_bytes,
         quota_bytes: user.quota_bytes,
         file_count,
+        assets: Assets::new(),
     })
 }
 
@@ -284,10 +288,12 @@ pub struct LoginPage {
     pub error: Option<String>,
     pub next: String,
     pub username: String,
+    pub assets: Assets,
 }
 
 pub struct SetupPage {
     pub error: Option<String>,
+    pub assets: Assets,
 }
 
 #[derive(Template)]
@@ -296,6 +302,7 @@ pub struct ErrorPage {
     pub status: u16,
     pub title: String,
     pub message: String,
+    pub assets: Assets,
 }
 
 pub struct PublicEntry {
@@ -339,6 +346,7 @@ pub struct SharePage {
     pub text_truncated: bool,
     /// 该分享设置了下载次数上限：不自动内联预览，避免预览消耗次数或绕过计数。
     pub download_limited: bool,
+    pub assets: Assets,
 }
 
 pub struct SharePasswordPage {
@@ -346,6 +354,7 @@ pub struct SharePasswordPage {
     pub owner_name: String,
     pub root_name: String,
     pub error: Option<String>,
+    pub assets: Assets,
 }
 
 pub struct RenameDialog {

@@ -1,3 +1,4 @@
+use crate::assets::Assets;
 use crate::auth::{self, CurrentUser};
 use crate::error::AppError;
 use crate::ratelimit::FailureLimit;
@@ -434,6 +435,7 @@ fn share_password_page(record: &ShareRecord, error: Option<String>) -> SharePass
         owner_name: record.owner_name.clone(),
         root_name: record.file_name.clone(),
         error,
+        assets: Assets::new(),
     }
 }
 
@@ -577,6 +579,7 @@ pub async fn public_page(
         text_content,
         text_truncated,
         download_limited,
+        assets: Assets::new(),
     };
     super::render(&ShareTemplate { page }, StatusCode::OK).await
 }
@@ -677,6 +680,7 @@ pub async fn public_file_page(
         text_content,
         text_truncated,
         download_limited,
+        assets: Assets::new(),
     };
     super::render(&ShareTemplate { page }, StatusCode::OK).await
 }

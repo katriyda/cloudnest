@@ -50,7 +50,7 @@ secure_cookies = true
 - 设置合理的请求体上限与超时，并在代理层补充登录/分享解锁的速率限制（应用内限流只能按用户名，无法区分代理后的客户端 IP）；
 - 限制管理入口的来源 IP（如条件允许）。
 
-CloudNest 自身的安全响应头：启用 `secure_cookies`（HTTPS 部署）时返回 `Strict-Transport-Security`；动态 HTML/JSON 响应默认 `Cache-Control: private, no-store`；CSP 为 `script-src 'self'`（页面脚本全部外置，无内联脚本），仅样式保留 `'unsafe-inline'`。
+CloudNest 自身的安全响应头：启用 `secure_cookies`（HTTPS 部署）时返回 `Strict-Transport-Security`；动态 HTML/JSON 响应默认 `Cache-Control: no-store, no-cache, max-age=0, must-revalidate`，并附带 `Pragma: no-cache`、`Expires: 0` 与 `CDN-Cache-Control: no-store`，避免旧浏览器、企业代理或 CDN 复用旧页面；静态资源地址带内容哈希（`/static/v/<version>/…`）并使用 `immutable` 长缓存，旧固定地址仅做不可缓存的临时跳转。CSP 为 `script-src 'self'`（页面脚本全部外置，无内联脚本），仅样式保留 `'unsafe-inline'`。
 
 Nginx/Caddy 示例见 [README.md](../README.md#反向代理与-https) 与 [docs/DEPLOY.md](DEPLOY.md)。
 

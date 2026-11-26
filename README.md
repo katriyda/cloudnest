@@ -258,6 +258,8 @@ curl -fsSL https://github.com/katriyda/cloudnest/releases/latest/download/instal
 
 升级后如新增配置项，请对照 [packaging/config.toml.example](packaging/config.toml.example) 检查 `/etc/cloudnest/config.toml`。
 
+每次发布都会重新计算前端资源的内容哈希，页面引用 `/static/v/<version>/…` 且自身 `no-store`，因此升级后不会继续使用旧 CSS/JS。若个别机器仍显示旧界面，先强制刷新或清除该站点缓存；代理与 CDN 的处理方式见 [docs/DEPLOY.md](docs/DEPLOY.md#82-升级后前端资源与缓存)。
+
 ## 卸载
 
 ```bash
@@ -329,6 +331,8 @@ cargo test
 ## 目录结构
 
 ```text
+build.rs                        编译期计算静态资源哈希、生成版本化地址
+src/assets.rs                   静态资源清单、缓存头与旧地址跳转
 scripts/install.sh              一键安装脚本
 packaging/cloudnest.service     systemd 单元
 packaging/config.toml.example   配置示例

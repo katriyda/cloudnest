@@ -1,3 +1,4 @@
+use crate::assets::Assets;
 use crate::views::ErrorPage;
 use askama::Template;
 use axum::http::{StatusCode, header};
@@ -107,6 +108,7 @@ impl IntoResponse for AppError {
             status: status.as_u16(),
             title: title.to_string(),
             message,
+            assets: Assets::new(),
         };
         let mut response = match page.render() {
             Ok(html) => (

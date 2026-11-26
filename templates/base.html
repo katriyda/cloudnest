@@ -6,12 +6,13 @@
 <title>{% block title %}CloudNest{% endblock %}</title>
 <meta name="csrf-token" content="{{ page.common.csrf }}">
 <meta name="htmx-config" content='{"noSwap":[204,304,"4xx","5xx"]}'>
-<link rel="stylesheet" href="/static/app.css">
-<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
-<script src="/static/theme.js"></script>
-<script src="/static/htmx.min.js" defer></script>
-<script src="/static/app.js" defer></script>
-<script src="/static/alpine.min.js" defer></script>
+<meta name="cloudnest-assets" content="{{ page.common.assets.version }}">
+<link rel="stylesheet" href="{{ page.common.assets.app_css }}">
+<link rel="icon" href="{{ page.common.assets.favicon }}" type="image/svg+xml">
+<script src="{{ page.common.assets.theme_js }}"></script>
+<script src="{{ page.common.assets.htmx_js }}" defer></script>
+<script src="{{ page.common.assets.app_js }}" defer></script>
+<script src="{{ page.common.assets.alpine_js }}" defer></script>
 </head>
 <body x-data="app">
 <a class="visually-hidden" href="#main-content">跳到主要内容</a>

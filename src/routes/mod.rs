@@ -5,35 +5,19 @@ pub mod settings;
 pub mod shares;
 pub mod trash;
 
+use crate::assets;
 use crate::auth::AdminUser;
 use crate::state::AppState;
 use askama::Template;
 use axum::Router;
-use axum::extract::{DefaultBodyLimit, Request, State};
-use axum::http::{HeaderValue, StatusCode, header};
+use axum::extract::{DefaultBodyLimit, Path, Request, State};
+use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use tower_http::trace::TraceLayer;
 
-const APP_CSS: &str = include_str!("../../static/app.css");
-const APP_JS: &str = include_str!("../../static/app.js");
-const THEME_JS: &str = include_str!("../../static/theme.js");
-const HTMX_JS: &str = include_str!("../../static/htmx.min.js");
-const ALPINE_JS: &str = include_str!("../../static/alpine.min.js");
-const FAVICON: &str = include_str!("../../static/favicon.svg");
-const FONT_UI_400: &[u8] =
-    include_bytes!("../../static/fonts/space-grotesk-latin-400-normal.woff2");
-const FONT_UI_500: &[u8] =
-    include_bytes!("../../static/fonts/space-grotesk-latin-500-normal.woff2");
-const FONT_UI_600: &[u8] =
-    include_bytes!("../../static/fonts/space-grotesk-latin-600-normal.woff2");
-const FONT_UI_700: &[u8] =
-    include_bytes!("../../static/fonts/space-grotesk-latin-700-normal.woff2");
-const FONT_MONO_400: &[u8] =
-    include_bytes!("../../static/fonts/ibm-plex-mono-latin-400-normal.woff2");
-const FONT_MONO_500: &[u8] =
-    include_bytes!("../../static/fonts/ibm-plex-mono-latin-500-normal.woff2");
+// 静态资源本体、内容哈希地址与缓存策略都在 crate::assets 中维护。
 
 /// 非上传接口的请求体上限。表单/JSON 提取器会整体缓冲请求体，必须保持很小，
 /// 否则未认证接口（例如 /login）可被超大请求体耗尽内存。
@@ -54,36 +38,15 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/", get(root))
         .route("/healthz", get(health))
-        .route("/static/app.css", get(asset_css))
-        .route("/static/app.js", get(asset_js))
-        .route("/static/theme.js", get(asset_theme))
-        .route("/static/htmx.min.js", get(asset_htmx))
-        .route("/static/alpine.min.js", get(asset_alpine))
-        .route("/static/favicon.svg", get(asset_favicon))
+        // 当前版本：/static/v/<内容哈希>/…，可以长期缓存。
+        .route("/static/v/{version}/{file}", get(asset_versioned))
         .route(
-            "/static/fonts/space-grotesk-latin-400-normal.woff2",
-            get(asset_font_ui_400),
+            "/static/v/{version}/fonts/{file}",
+            get(asset_font_versioned),
         )
-        .route(
-            "/static/fonts/space-grotesk-latin-500-normal.woff2",
-            get(asset_font_ui_500),
-        )
-        .route(
-            "/static/fonts/space-grotesk-latin-600-normal.woff2",
-            get(asset_font_ui_600),
-        )
-        .route(
-            "/static/fonts/space-grotesk-latin-700-normal.woff2",
-            get(asset_font_ui_700),
-        )
-        .route(
-            "/static/fonts/ibm-plex-mono-latin-400-normal.woff2",
-            get(asset_font_mono_400),
-        )
-        .route(
-            "/static/fonts/ibm-plex-mono-latin-500-normal.woff2",
-            get(asset_font_mono_500),
-        )
+        // 旧固定地址：保留临时跳转，兼容升级前缓存的旧页面。
+        .route("/static/{file}", get(asset_legacy))
+        .route("/static/fonts/{file}", get(asset_font_legacy))
         .route(
             "/login",
             get(auth_routes::login_page).post(auth_routes::login_submit),
@@ -223,9 +186,22 @@ async fn security_headers(State(state): State<AppState>, req: Request, next: Nex
         HeaderValue::from_static("camera=(), microphone=(), geolocation=()"),
     );
     if needs_no_store {
+        // 页面与接口响应绝不允许被浏览器或中间缓存复用。
+        // 除标准的 no-store 外，再补上 HTTP/1.0 时代的 Pragma/Expires，
+        // 以及 Cloudflare 等 CDN 会优先识别的 CDN-Cache-Control，
+        // 覆盖那些会忽略 no-store 的旧浏览器、企业代理与 CDN。
         headers.insert(
             header::CACHE_CONTROL,
-            HeaderValue::from_static("private, no-store"),
+            HeaderValue::from_static("no-store, no-cache, max-age=0, must-revalidate"),
+        );
+        headers.insert(header::PRAGMA, HeaderValue::from_static("no-cache"));
+        headers.insert(
+            header::EXPIRES,
+            HeaderValue::from_static("Thu, 01 Jan 1970 00:00:00 GMT"),
+        );
+        headers.insert(
+            header::HeaderName::from_static("cdn-cache-control"),
+            HeaderValue::from_static("no-store"),
         );
     }
     if https {
@@ -254,118 +230,41 @@ async fn health(State(state): State<AppState>) -> Response {
     }
 }
 
-async fn asset_css() -> Response {
-    let mut response = APP_CSS.into_response();
-    response.headers_mut().insert(
-        header::CONTENT_TYPE,
-        HeaderValue::from_static("text/css; charset=utf-8"),
-    );
-    response.headers_mut().insert(
-        header::CACHE_CONTROL,
-        HeaderValue::from_static("public, max-age=0, must-revalidate"),
-    );
-    response
+/// 版本匹配：按内容哈希长期缓存。版本不匹配（旧页面/旧缓存引用）：跳回当前地址。
+async fn asset_versioned(
+    Path((version, file)): Path<(String, String)>,
+    headers: HeaderMap,
+) -> Response {
+    match assets::lookup(&file) {
+        Some(asset) => assets::serve(asset, &version, &headers),
+        None => not_found().await,
+    }
 }
 
-async fn asset_js() -> Response {
-    let mut response = APP_JS.into_response();
-    response.headers_mut().insert(
-        header::CONTENT_TYPE,
-        HeaderValue::from_static("application/javascript; charset=utf-8"),
-    );
-    response.headers_mut().insert(
-        header::CACHE_CONTROL,
-        HeaderValue::from_static("public, max-age=0, must-revalidate"),
-    );
-    response
+async fn asset_font_versioned(
+    Path((version, file)): Path<(String, String)>,
+    headers: HeaderMap,
+) -> Response {
+    match assets::lookup_font(&file) {
+        Some(asset) => assets::serve(asset, &version, &headers),
+        None => not_found().await,
+    }
 }
 
-async fn asset_theme() -> Response {
-    let mut response = THEME_JS.into_response();
-    response.headers_mut().insert(
-        header::CONTENT_TYPE,
-        HeaderValue::from_static("application/javascript; charset=utf-8"),
-    );
-    response.headers_mut().insert(
-        header::CACHE_CONTROL,
-        HeaderValue::from_static("public, max-age=0, must-revalidate"),
-    );
-    response
+// 升级前缓存的旧 HTML 只会引用固定地址；这里始终跳转到带内容哈希的当前版本，
+// 跳转响应本身 no-store，避免中间缓存把这个地址也缓存住。
+async fn asset_legacy(Path(file): Path<String>) -> Response {
+    match assets::lookup(&file) {
+        Some(asset) => assets::redirect_to(asset.url()),
+        None => not_found().await,
+    }
 }
 
-async fn asset_htmx() -> Response {
-    let mut response = HTMX_JS.into_response();
-    response.headers_mut().insert(
-        header::CONTENT_TYPE,
-        HeaderValue::from_static("application/javascript; charset=utf-8"),
-    );
-    response.headers_mut().insert(
-        header::CACHE_CONTROL,
-        HeaderValue::from_static("public, max-age=0, must-revalidate"),
-    );
-    response
-}
-
-async fn asset_alpine() -> Response {
-    let mut response = ALPINE_JS.into_response();
-    response.headers_mut().insert(
-        header::CONTENT_TYPE,
-        HeaderValue::from_static("application/javascript; charset=utf-8"),
-    );
-    response.headers_mut().insert(
-        header::CACHE_CONTROL,
-        HeaderValue::from_static("public, max-age=0, must-revalidate"),
-    );
-    response
-}
-
-fn font_response(bytes: &'static [u8]) -> Response {
-    let mut response = bytes.into_response();
-    response
-        .headers_mut()
-        .insert(header::CONTENT_TYPE, HeaderValue::from_static("font/woff2"));
-    response.headers_mut().insert(
-        header::CACHE_CONTROL,
-        HeaderValue::from_static("public, max-age=31536000, immutable"),
-    );
-    response
-}
-
-async fn asset_font_ui_400() -> Response {
-    font_response(FONT_UI_400)
-}
-
-async fn asset_font_ui_500() -> Response {
-    font_response(FONT_UI_500)
-}
-
-async fn asset_font_ui_600() -> Response {
-    font_response(FONT_UI_600)
-}
-
-async fn asset_font_ui_700() -> Response {
-    font_response(FONT_UI_700)
-}
-
-async fn asset_font_mono_400() -> Response {
-    font_response(FONT_MONO_400)
-}
-
-async fn asset_font_mono_500() -> Response {
-    font_response(FONT_MONO_500)
-}
-
-async fn asset_favicon() -> Response {
-    let mut response = FAVICON.into_response();
-    response.headers_mut().insert(
-        header::CONTENT_TYPE,
-        HeaderValue::from_static("image/svg+xml"),
-    );
-    response.headers_mut().insert(
-        header::CACHE_CONTROL,
-        HeaderValue::from_static("public, max-age=86400"),
-    );
-    response
+async fn asset_font_legacy(Path(file): Path<String>) -> Response {
+    match assets::lookup_font(&file) {
+        Some(asset) => assets::redirect_to(asset.url()),
+        None => not_found().await,
+    }
 }
 
 async fn api_version(_admin: AdminUser) -> Response {

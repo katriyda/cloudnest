@@ -263,6 +263,14 @@ sudo journalctl -u cloudnest.service -n 100 --no-pager
 
 如新版本引入配置项，请对照 [packaging/config.toml.example](../packaging/config.toml.example) 增补配置。回滚时使用旧版本安装包重装并恢复升级前备份。
 
+### 8.2 升级后前端资源与缓存
+
+前端资源（CSS/JS/字体/图标）编译进二进制，编译时会按内容计算哈希，页面引用的是 `/static/v/<version>/…` 这样的地址；版本变化后地址整体变化，因此浏览器里保存的旧副本不会再被新页面使用，资源本身则按一年期 `immutable` 缓存。页面 HTML 始终 `no-store`（并附带 `Pragma`、`Expires` 与 `CDN-Cache-Control`），确保每次打开都拿到最新页面。
+
+- 旧固定地址（如 `/static/app.css`）保留为 `no-store` 的临时跳转，升级前缓存的旧页面会自动回到当前版本；
+- 若页面被运营商的强制缓存长期劫持，可在浏览器中强制刷新（Windows `Ctrl+F5` / macOS `Cmd+Shift+R`），或清除该站点缓存；
+- 使用 Cloudflare 等 CDN 时，如仍有个别节点返回旧资源，可按 URL 清除 `/static/` 缓存；页面响应已被标记为不缓存，正常情况下无需整站清除。
+
 ## 9. 卸载
 
 ```bash
@@ -327,6 +335,7 @@ cross build --release --locked --target aarch64-unknown-linux-musl
 | 网页保存设置提示无法写入 | 服务用户对 `/etc/cloudnest` 无写权限 | 恢复安装脚本权限：`chown root:cloudnest /etc/cloudnest && chmod 0770 /etc/cloudnest` |
 | 网页更新提示无法替换程序 | 服务用户对 `/opt/cloudnest` 无写权限，或单元缺少 `ReadWritePaths` | 恢复 `0770 root:cloudnest` 目录权限并检查 systemd 单元 |
 | 网页更新下载/校验失败 | 网络不可达、GitHub 限流或发布资产/校验文件缺失 | 查看 `journalctl -u cloudnest.service`，改用 `cloudnest update` 或发布包 |
+| 升级后部分机器仍是旧界面 | 浏览器/代理按旧固定地址长期缓存了 CSS/JS | 前端资源已按内容哈希换地址且页面 `no-store`；对残留环境强制刷新或清站点缓存，CDN 可清除 `/static/` |
 
 ### 11.1 收集诊断信息
 

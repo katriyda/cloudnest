@@ -4,11 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>登录 · CloudNest</title>
-<link rel="stylesheet" href="/static/app.css">
-<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
-<script src="/static/theme.js"></script>
-<script src="/static/app.js" defer></script>
-<script src="/static/alpine.min.js" defer></script>
+<meta name="cloudnest-assets" content="{{ page.assets.version }}">
+<link rel="stylesheet" href="{{ page.assets.app_css }}">
+<link rel="icon" href="{{ page.assets.favicon }}" type="image/svg+xml">
+<script src="{{ page.assets.theme_js }}"></script>
+<script src="{{ page.assets.app_js }}" defer></script>
+<script src="{{ page.assets.alpine_js }}" defer></script>
 </head>
 <body class="auth-body" x-data="app">
 <button class="icon-btn auth-theme theme-toggle" type="button" @click="toggleTheme()" aria-label="切换浅色/深色主题">

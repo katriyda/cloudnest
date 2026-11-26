@@ -75,7 +75,7 @@ cargo license
 
 ## 字体与图标
 
-界面主字体与等宽字体以 woff2 形式随二进制内置，均由 `src/routes/mod.rs` 通过 `include_bytes!` 嵌入并在 `/static/fonts/` 下提供：
+界面主字体与等宽字体以 woff2 形式随二进制内置，均由 `src/assets.rs` 通过 `include_bytes!` 嵌入，并以带内容哈希的 `/static/v/<version>/fonts/` 地址提供：
 
 | 字体 | 用途 | 许可证 | 版权 |
 | --- | --- | --- | --- |

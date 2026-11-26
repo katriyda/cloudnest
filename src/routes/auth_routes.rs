@@ -1,3 +1,4 @@
+use crate::assets::Assets;
 use crate::auth::{self, CurrentUser};
 use crate::error::AppError;
 use crate::ratelimit::FailureLimit;
@@ -81,6 +82,7 @@ pub async fn login_page(
         error: None,
         next: util::safe_next(query.next.as_deref()),
         username: String::new(),
+        assets: Assets::new(),
     };
     super::render(&LoginTemplate { page }, StatusCode::OK).await
 }
@@ -104,6 +106,7 @@ pub async fn login_submit(
             error: Some(generic_error),
             next,
             username,
+            assets: Assets::new(),
         };
         return super::render(&LoginTemplate { page }, StatusCode::UNAUTHORIZED).await;
     }
@@ -164,6 +167,7 @@ pub async fn login_submit(
         error,
         next,
         username,
+        assets: Assets::new(),
     };
     super::render(&LoginTemplate { page }, StatusCode::UNAUTHORIZED).await
 }
@@ -174,7 +178,10 @@ pub async fn setup_page(State(state): State<AppState>) -> Result<Response, AppEr
     }
     super::render(
         &SetupTemplate {
-            page: SetupPage { error: None },
+            page: SetupPage {
+                error: None,
+                assets: Assets::new(),
+            },
         },
         StatusCode::OK,
     )
@@ -201,7 +208,10 @@ pub async fn setup_submit(
     if let Some(error) = error {
         return super::render(
             &SetupTemplate {
-                page: SetupPage { error: Some(error) },
+                page: SetupPage {
+                    error: Some(error),
+                    assets: Assets::new(),
+                },
             },
             StatusCode::BAD_REQUEST,
         )
@@ -233,6 +243,7 @@ pub async fn setup_submit(
                 &SetupTemplate {
                     page: SetupPage {
                         error: Some("创建管理员失败，请重试".to_string()),
+                        assets: Assets::new(),
                     },
                 },
                 StatusCode::INTERNAL_SERVER_ERROR,
