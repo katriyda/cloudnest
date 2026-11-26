@@ -29,7 +29,7 @@
     <span>名称</span><span class="num">大小</span><span class="num">删除时间</span><span class="num">操作</span>
   </div>
   {% for entry in page.entries %}
-  <div class="row">
+  <div class="row is-action-bar">
     <div class="file-link">
       <span class="file-ico{% if entry.is_dir %} is-dir{% endif %}">{% if entry.is_dir %}{% include "icons/folder.svg" %}{% else %}<span class="ext">{{ entry.ext_label }}</span>{% endif %}</span>
       <span class="file-text">

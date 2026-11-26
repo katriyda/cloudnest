@@ -382,6 +382,101 @@ async function run({ base, browser }) {
     check('移动端没有横向溢出',
       await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1));
     check('移动端显示菜单按钮', await page.locator('.menu-btn').isVisible());
+
+    // 移动端布局体检：把“能看出来”的对齐问题变成断言，避免以后又悄悄退化。
+    const layoutProblems = await page.evaluate(() => {
+      const problems = [];
+      const vw = document.documentElement.clientWidth;
+      const visible = (el) => {
+        const style = getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden') return false;
+        if (el.closest('.visually-hidden')) return false;
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      };
+      const name = (el) => el.tagName.toLowerCase() + (el.className && typeof el.className === 'string'
+        ? '.' + el.className.trim().split(/\s+/).join('.') : '');
+      const midY = (rect) => rect.top + rect.height / 2;
+      // 只检查当前视口里的元素，滚动区域里的按钮不参与测量。
+      const inView = (rect) => rect.top < window.innerHeight && rect.bottom > -window.innerHeight;
+      for (const el of document.querySelectorAll('body *')) {
+        if (!visible(el)) continue;
+        if (el.closest('.sidebar') && getComputedStyle(el.closest('.sidebar')).visibility === 'hidden') continue;
+        const rect = el.getBoundingClientRect();
+        if (!inView(rect)) continue;
+        if (rect.right > vw + 1.5 || rect.left < -1.5) {
+          problems.push('横向溢出 ' + name(el) + ' ' + Math.round(rect.left) + '..' + Math.round(rect.right) + '/' + vw);
+        }
+      }
+      // 图标与容器垂直居中；纯图标按钮还要求水平居中。
+      for (const host of document.querySelectorAll('.icon-btn, .btn, .nav-item, .view-toggle a, .card-more, .file-ico, .badge, .toast')) {
+        if (!visible(host)) continue;
+        const svg = [...host.querySelectorAll('svg')].find(visible);
+        if (!svg) continue;
+        const hostRect = host.getBoundingClientRect();
+        const svgRect = svg.getBoundingClientRect();
+        if (Math.abs(midY(hostRect) - midY(svgRect)) > 1.2) {
+          problems.push('图标垂直偏移 ' + name(host) + ' ' + (midY(svgRect) - midY(hostRect)).toFixed(1) + 'px');
+        }
+        const onlyIcon = (host.textContent || '').trim().length === 0
+          || host.matches('.icon-btn, .card-more, .view-toggle a');
+        if (onlyIcon) {
+          const dx = Math.abs((hostRect.left + hostRect.width / 2) - (svgRect.left + svgRect.width / 2));
+          if (dx > 1.2) problems.push('图标水平偏移 ' + name(host) + ' ' + dx.toFixed(1) + 'px');
+        }
+      }
+      // 触控目标尺寸：移动端主要控件不应小于 32px。
+      for (const el of document.querySelectorAll('.icon-btn, .btn, .crumb, .sort-tabs a, .nav-item, .view-toggle a, .card-more')) {
+        if (!visible(el)) continue;
+        if (el.closest('.sidebar') && getComputedStyle(el.closest('.sidebar')).visibility === 'hidden') continue;
+        const rect = el.getBoundingClientRect();
+        if (!inView(rect)) continue;
+        if (rect.width < 32 || rect.height < 32) {
+          problems.push('触控目标过小 ' + name(el) + ' ' + Math.round(rect.width) + 'x' + Math.round(rect.height));
+        }
+      }
+      return problems;
+    });
+    check('移动端对齐与触控尺寸体检', layoutProblems.length === 0, layoutProblems.slice(0, 6).join(' | '));
+
+    check('移动端列表行操作不与大小列重叠', await page.evaluate(() => {
+      const row = document.querySelector('.file-table .row');
+      if (!row) return true;
+      const size = row.querySelector('.cell-num');
+      const actions = row.querySelector('.row-actions');
+      if (!size || !actions) return true;
+      return size.getBoundingClientRect().right <= actions.getBoundingClientRect().left + 0.5;
+    }));
+
+    await page.goto(base + '/admin');
+    await page.waitForTimeout(300);
+    check('移动端后台徽标不被拉满整行', await page.evaluate(() => {
+      const badge = document.querySelector('.data-table .badge');
+      if (!badge) return true;
+      const cell = badge.closest('td');
+      return badge.getBoundingClientRect().width < cell.getBoundingClientRect().width * 0.6;
+    }));
+
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto(base + '/admin/settings');
+    await page.waitForTimeout(300);
+    check('窄屏站点设置表单单列排布', await page.evaluate(() => [...document.querySelectorAll('.field-row')]
+      .every((row) => getComputedStyle(row).gridTemplateColumns.split(' ').length === 1)));
+    check('窄屏没有横向溢出',
+      await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1));
+
+    await page.setViewportSize({ width: 360, height: 740 });
+    await page.goto(base + '/files?view=grid');
+    await page.waitForTimeout(350);
+    check('360 宽网格仍是两列', await page.evaluate(() => {
+      const grid = document.querySelector('.file-grid');
+      return !!grid && getComputedStyle(grid).gridTemplateColumns.split(' ').length === 2;
+    }));
+    check('360 宽网格没有横向溢出',
+      await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(base + '/files');
+    await page.waitForTimeout(250);
     await page.click('.menu-btn');
     await page.waitForTimeout(300);
     check('抽屉导航打开', await page.evaluate(() => document.querySelector('.sidebar').dataset.open) === 'true');
